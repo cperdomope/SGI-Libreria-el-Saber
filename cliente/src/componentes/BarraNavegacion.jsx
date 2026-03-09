@@ -24,9 +24,10 @@
  * @version 2.0.0
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexto/AuthContext';
+import ModalCambiarPassword from './ModalCambiarPassword';
 
 // =====================================================
 // ICONOS SVG (Bootstrap Icons - MIT License)
@@ -113,6 +114,9 @@ const BarraNavegacion = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Estado para el modal de cambio de contraseña
+  const [mostrarCambioPassword, setMostrarCambioPassword] = useState(false);
+
   // ─────────────────────────────────────────────────
   // MANEJADORES DE EVENTOS
   // ─────────────────────────────────────────────────
@@ -185,6 +189,7 @@ const BarraNavegacion = () => {
   // ─────────────────────────────────────────────────
 
   return (
+    <>
     <nav className="navbar navbar-expand-lg navbar-dark shadow">
       <div className="container-fluid px-4">
 
@@ -345,23 +350,69 @@ const BarraNavegacion = () => {
               SECCIÓN DE USUARIO
               Nombre, rol y botón de logout
               ───────────────────────────────────────────────── */}
+          {/* ── MENÚ DE USUARIO (dropdown) ── */}
           <div className="d-flex align-items-center text-white border-start border-white border-opacity-25 ps-lg-4 ms-lg-2 mt-3 mt-lg-0">
-            <div className="me-3 lh-1 text-end d-none d-lg-block">
-              <div className="fw-bold">{obtenerNombreUsuario()}</div>
-              <div className="small text-white-50">{nombreRol()}</div>
+            <div className="dropdown">
+              <button
+                className="btn d-flex align-items-center gap-2 text-white bg-transparent border-0 p-0"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+              >
+                <div className="lh-1 text-end d-none d-lg-block me-2">
+                  <div className="fw-bold">{obtenerNombreUsuario()}</div>
+                  <div className="small text-white-50">{nombreRol()}</div>
+                </div>
+                {/* Avatar circular con inicial */}
+                <div
+                  className="rounded-circle bg-white bg-opacity-25 d-flex align-items-center justify-content-center fw-bold"
+                  style={{ width: 38, height: 38, fontSize: 16 }}
+                >
+                  {(obtenerNombreUsuario() || 'U')[0].toUpperCase()}
+                </div>
+              </button>
+
+              <ul className="dropdown-menu dropdown-menu-end shadow">
+                {/* Enlace a Gestión de Usuarios (solo Admin) */}
+                {tienePermiso('gestionarUsuarios') && (
+                  <li>
+                    <Link className="dropdown-item" to="/admin/usuarios">
+                      Gestión de Usuarios
+                    </Link>
+                  </li>
+                )}
+                {tienePermiso('gestionarUsuarios') && <li><hr className="dropdown-divider" /></li>}
+
+                {/* Cambiar contraseña (todos los usuarios) */}
+                <li>
+                  <button
+                    className="dropdown-item"
+                    onClick={() => setMostrarCambioPassword(true)}
+                  >
+                    Cambiar Contraseña
+                  </button>
+                </li>
+
+                <li><hr className="dropdown-divider" /></li>
+
+                {/* Cerrar sesión */}
+                <li>
+                  <button className="dropdown-item text-danger" onClick={manejarSalida}>
+                    Cerrar Sesión
+                  </button>
+                </li>
+              </ul>
             </div>
-            <button
-              className="btn btn-light bg-white bg-opacity-10 border-0 text-white rounded-circle p-2 d-flex align-items-center justify-content-center hover-bg-opacity-25"
-              style={{ width: 40, height: 40 }}
-              onClick={manejarSalida}
-              title="Cerrar Sesión"
-            >
-              <IconoSalir />
-            </button>
           </div>
         </div>
       </div>
     </nav>
+
+    {/* Modal de Cambio de Contraseña */}
+    <ModalCambiarPassword
+      visible={mostrarCambioPassword}
+      onCerrar={() => setMostrarCambioPassword(false)}
+    />
+  </>
   );
 };
 

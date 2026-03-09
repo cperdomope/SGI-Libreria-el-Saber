@@ -22,7 +22,9 @@
  * @version 2.0.0
  */
 
-const db = require('../configuracion/db');
+const db   = require('../configuracion/db');
+const path = require('path');
+const fs   = require('fs');
 
 // =====================================================
 // CONTROLADORES CRUD
@@ -93,6 +95,7 @@ exports.obtenerLibros = async (req, res) => {
       SELECT
         l.id,
         l.isbn,
+        l.portada,
         l.titulo,
         l.autor_id,
         l.categoria_id,
@@ -173,6 +176,9 @@ exports.obtenerLibros = async (req, res) => {
 exports.crearLibro = async (req, res) => {
   const { isbn, titulo, autor_id, categoria_id, precio_venta, stock_minimo } = req.body;
 
+  // req.file viene de multer cuando se sube una imagen
+  const portadaFilename = req.file ? req.file.filename : null;
+
   // Validaciones básicas
   if (!titulo || titulo.trim() === '') {
     return res.status(400).json({
@@ -193,10 +199,11 @@ exports.crearLibro = async (req, res) => {
     // Esto garantiza trazabilidad completa del inventario
     const [resultado] = await db.query(
       `INSERT INTO mdc_libros
-       (isbn, titulo, autor_id, categoria_id, precio_venta, stock_minimo, stock_actual)
-       VALUES (?, ?, ?, ?, ?, ?, 0)`,
+       (isbn, portada, titulo, autor_id, categoria_id, precio_venta, stock_minimo, stock_actual)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
       [
         isbn || null,
+        portadaFilename,
         titulo.trim(),
         autor_id || null,
         categoria_id || null,
@@ -249,6 +256,9 @@ exports.actualizarLibro = async (req, res) => {
   const { id } = req.params; // ID ya validado por middleware validarId
   const { isbn, titulo, autor_id, categoria_id, precio_venta, stock_minimo } = req.body;
 
+  // req.file viene de multer cuando se sube una nueva imagen
+  const nuevaPortada = req.file ? req.file.filename : null;
+
   // Validaciones básicas
   if (!titulo || titulo.trim() === '') {
     return res.status(400).json({
@@ -258,23 +268,46 @@ exports.actualizarLibro = async (req, res) => {
   }
 
   try {
+    // Si se sube nueva portada, obtener la anterior para borrarla después
+    let portadaAnterior = null;
+    if (nuevaPortada) {
+      const [rows] = await db.query(
+        'SELECT portada FROM mdc_libros WHERE id = ?',
+        [id]
+      );
+      portadaAnterior = rows[0]?.portada || null;
+    }
+
+    // Construir SET dinámico: solo actualizar portada si se subió una nueva
+    // Así no se borra la portada existente al editar solo texto
+    const campos = [
+      'isbn = ?', 'titulo = ?', 'autor_id = ?',
+      'categoria_id = ?', 'precio_venta = ?', 'stock_minimo = ?'
+    ];
+    const valores = [
+      isbn || null, titulo.trim(), autor_id || null,
+      categoria_id || null, precio_venta, stock_minimo || 5
+    ];
+
+    if (nuevaPortada) {
+      campos.push('portada = ?');
+      valores.push(nuevaPortada);
+    }
+
+    valores.push(id);
+
     // No actualizamos stock_actual directamente
     // Los cambios de stock deben pasar por el módulo de movimientos
     const [resultado] = await db.query(
-      `UPDATE mdc_libros
-       SET isbn = ?, titulo = ?, autor_id = ?, categoria_id = ?,
-           precio_venta = ?, stock_minimo = ?
-       WHERE id = ?`,
-      [
-        isbn || null,
-        titulo.trim(),
-        autor_id || null,
-        categoria_id || null,
-        precio_venta,
-        stock_minimo || 5,
-        id
-      ]
+      `UPDATE mdc_libros SET ${campos.join(', ')} WHERE id = ?`,
+      valores
     );
+
+    // Eliminar archivo antiguo si se reemplazó la portada
+    if (nuevaPortada && portadaAnterior) {
+      const rutaAntigua = path.join(__dirname, '..', 'uploads', 'portadas', portadaAnterior);
+      fs.unlink(rutaAntigua, () => {}); // silencioso: el archivo puede no existir
+    }
 
     if (resultado.affectedRows === 0) {
       return res.status(404).json({
@@ -325,6 +358,13 @@ exports.eliminarLibro = async (req, res) => {
   const { id } = req.params; // ID ya validado por middleware validarId
 
   try {
+    // Obtener portada antes de eliminar para borrar el archivo
+    const [rows] = await db.query(
+      'SELECT portada FROM mdc_libros WHERE id = ?',
+      [id]
+    );
+    const portadaActual = rows[0]?.portada || null;
+
     const [resultado] = await db.query(
       'DELETE FROM mdc_libros WHERE id = ?',
       [id]
@@ -336,6 +376,12 @@ exports.eliminarLibro = async (req, res) => {
         mensaje: 'Libro no encontrado',
         codigo: 'LIBRO_NOT_FOUND'
       });
+    }
+
+    // Eliminar archivo de portada del disco si existía
+    if (portadaActual) {
+      const rutaPortada = path.join(__dirname, '..', 'uploads', 'portadas', portadaActual);
+      fs.unlink(rutaPortada, () => {}); // silencioso
     }
 
     res.json({

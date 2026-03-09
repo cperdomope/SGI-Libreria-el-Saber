@@ -178,6 +178,38 @@ exports.obtenerEstadisticas = async (req, res) => {
     // Estructura consistente para el frontend
     // ─────────────────────────────────────────────────
 
+    // ─────────────────────────────────────────────────
+    // CONSULTA 7: VENTAS POR MES (últimos 6 meses)
+    // Para la gráfica de barras del dashboard
+    // ─────────────────────────────────────────────────
+
+    const [ventasPorMes] = await db.query(`
+      SELECT
+        DATE_FORMAT(fecha_venta, '%Y-%m') AS mes,
+        DATE_FORMAT(fecha_venta, '%b %Y') AS mes_label,
+        COUNT(*) AS cantidad,
+        COALESCE(SUM(total_venta), 0) AS ingresos
+      FROM mdc_ventas
+      WHERE fecha_venta >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+      GROUP BY DATE_FORMAT(fecha_venta, '%Y-%m'), DATE_FORMAT(fecha_venta, '%b %Y')
+      ORDER BY mes ASC
+    `);
+
+    // ─────────────────────────────────────────────────
+    // CONSULTA 8: LIBROS POR CATEGORÍA
+    // Para la gráfica de torta del dashboard
+    // ─────────────────────────────────────────────────
+
+    const [librosPorCategoria] = await db.query(`
+      SELECT
+        c.nombre AS categoria,
+        COUNT(l.id) AS total_libros
+      FROM mdc_categorias c
+      LEFT JOIN mdc_libros l ON l.categoria_id = c.id
+      GROUP BY c.id, c.nombre
+      ORDER BY total_libros DESC
+    `);
+
     res.json({
       exito: true,
       datos: {
@@ -219,7 +251,19 @@ exports.obtenerEstadisticas = async (req, res) => {
         // Totales
         total_libros: totalLibros[0].total,
         total_clientes: totalClientes[0].total,
-        alertas_stock: librosStockBajo.length
+        alertas_stock: librosStockBajo.length,
+
+        // Datos para gráficas
+        ventas_por_mes: ventasPorMes.map(v => ({
+          mes: v.mes_label,
+          ventas: parseInt(v.cantidad) || 0,
+          ingresos: parseFloat(v.ingresos) || 0
+        })),
+
+        libros_por_categoria: librosPorCategoria.map(c => ({
+          categoria: c.categoria,
+          total: parseInt(c.total_libros) || 0
+        }))
       }
     });
 

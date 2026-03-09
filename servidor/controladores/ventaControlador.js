@@ -370,25 +370,56 @@ exports.obtenerVentas = async (req, res) => {
 
     const offset = (pagina - 1) * limite;
 
-    // Consulta base
+    // Filtros por rango de fechas (Prioridad 2 - Filtro de historial)
+    const { fechaInicio, fechaFin, buscar } = req.query;
+
+    // Construir condiciones WHERE dinámicamente
+    const condiciones = [];
+    const parametros = [];
+
+    if (fechaInicio) {
+      condiciones.push('DATE(v.fecha_venta) >= ?');
+      parametros.push(fechaInicio);
+    }
+
+    if (fechaFin) {
+      condiciones.push('DATE(v.fecha_venta) <= ?');
+      parametros.push(fechaFin);
+    }
+
+    if (buscar) {
+      condiciones.push('c.nombre_completo LIKE ?');
+      parametros.push(`%${buscar}%`);
+    }
+
+    const whereClause = condiciones.length > 0
+      ? 'WHERE ' + condiciones.join(' AND ')
+      : '';
+
+    // Consulta base con filtros opcionales
     const sqlBase = `
       SELECT
         v.id,
         v.fecha_venta,
         v.total_venta AS total,
         v.metodo_pago,
+        v.estado,
         c.nombre_completo AS cliente,
         c.documento
       FROM mdc_ventas v
       JOIN mdc_clientes c ON v.cliente_id = c.id
+      ${whereClause}
       ORDER BY v.fecha_venta DESC
     `;
 
     if (usarPaginacion) {
       // Con paginación
       const sqlPaginada = sqlBase + ` LIMIT ? OFFSET ?`;
-      const [rows] = await db.query(sqlPaginada, [limite, offset]);
-      const [[{ total }]] = await db.query('SELECT COUNT(*) as total FROM mdc_ventas');
+      const [rows] = await db.query(sqlPaginada, [...parametros, limite, offset]);
+      const [[{ total }]] = await db.query(
+        `SELECT COUNT(*) as total FROM mdc_ventas v JOIN mdc_clientes c ON v.cliente_id = c.id ${whereClause}`,
+        parametros
+      );
 
       res.json({
         exito: true,
@@ -402,7 +433,7 @@ exports.obtenerVentas = async (req, res) => {
       });
     } else {
       // Sin paginación (retrocompatible)
-      const [rows] = await db.query(sqlBase);
+      const [rows] = await db.query(sqlBase, parametros);
 
       res.json({
         exito: true,
@@ -532,5 +563,122 @@ exports.obtenerDetalleVenta = async (req, res) => {
       codigo: 'VENTA_DETAIL_ERROR',
       ...(process.env.NODE_ENV === 'development' && { error: error.message })
     });
+  }
+};
+
+/**
+ * Anula una venta existente (Prioridad 3 - Anulación de ventas).
+ *
+ * FLUJO DE LA ANULACIÓN (dentro de transacción ACID):
+ * 1. Verificar que la venta exista y no esté ya anulada
+ * 2. Obtener los items de la venta
+ * 3. Cambiar estado de la venta a 'Anulada'
+ * 4. Revertir el stock de cada libro vendido
+ * 5. Registrar movimiento en Kardex (tipo ENTRADA con nota de anulación)
+ *
+ * @async
+ * @param {Object} req - Request de Express
+ * @param {string} req.params.id - ID de la venta a anular
+ * @param {Object} req.usuario - Usuario autenticado (del middleware JWT)
+ * @param {Object} res - Response de Express
+ */
+exports.anularVenta = async (req, res) => {
+  let { id } = req.params;
+
+  id = parseInt(id, 10);
+  if (isNaN(id) || id <= 0) {
+    return res.status(400).json({ exito: false, mensaje: 'ID de venta inválido' });
+  }
+
+  let connection;
+
+  try {
+    connection = await db.getConnection();
+    await connection.beginTransaction();
+
+    // PASO 1: Verificar que la venta existe y no está anulada
+    const [ventas] = await connection.query(
+      'SELECT id, estado FROM mdc_ventas WHERE id = ?',
+      [id]
+    );
+
+    if (ventas.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ exito: false, mensaje: 'Venta no encontrada' });
+    }
+
+    if (ventas[0].estado === 'Anulada') {
+      await connection.rollback();
+      return res.status(400).json({ exito: false, mensaje: 'La venta ya fue anulada' });
+    }
+
+    // PASO 2: Obtener items de la venta para revertir stock
+    const [items] = await connection.query(
+      'SELECT libro_id, cantidad FROM mdc_detalle_ventas WHERE venta_id = ?',
+      [id]
+    );
+
+    // PASO 3: Cambiar estado de la venta
+    await connection.query(
+      "UPDATE mdc_ventas SET estado = 'Anulada' WHERE id = ?",
+      [id]
+    );
+
+    // PASO 4 y 5: Revertir stock y registrar en Kardex por cada item
+    for (const item of items) {
+      // Obtener stock actual antes de revertir
+      const [libroActual] = await connection.query(
+        'SELECT stock_actual FROM mdc_libros WHERE id = ?',
+        [item.libro_id]
+      );
+
+      const stockAnterior = libroActual[0]?.stock_actual || 0;
+      const stockNuevo = stockAnterior + item.cantidad;
+
+      // Revertir stock (sumar lo que se descontó)
+      await connection.query(
+        'UPDATE mdc_libros SET stock_actual = stock_actual + ? WHERE id = ?',
+        [item.cantidad, item.libro_id]
+      );
+
+      // Registrar en Kardex la reversión
+      await connection.query(
+        `INSERT INTO mdc_movimientos
+          (libro_id, usuario_id, tipo_movimiento, cantidad, stock_anterior, stock_nuevo, observaciones)
+         VALUES (?, ?, 'ENTRADA', ?, ?, ?, ?)`,
+        [
+          item.libro_id,
+          req.usuario.id,
+          item.cantidad,
+          stockAnterior,
+          stockNuevo,
+          `Reversa por anulación de venta #${id}`
+        ]
+      );
+    }
+
+    await connection.commit();
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[Venta] Anulada venta #${id} por usuario ${req.usuario.id}`);
+    }
+
+    res.json({
+      exito: true,
+      mensaje: `Venta #${id} anulada exitosamente. Stock revertido.`
+    });
+
+  } catch (error) {
+    if (connection) await connection.rollback();
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[Venta] Error al anular venta:', error);
+    }
+    res.status(500).json({
+      exito: false,
+      mensaje: 'Error al anular la venta',
+      codigo: 'ANULACION_ERROR'
+    });
+  } finally {
+    if (connection) connection.release();
   }
 };

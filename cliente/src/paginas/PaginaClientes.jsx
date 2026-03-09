@@ -23,7 +23,7 @@
  * @version 2.0.0
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import api from '../servicios/api';
 import { useAuth } from '../contexto/AuthContext';
 
@@ -74,15 +74,28 @@ const PaginaClientes = () => {
     direccion: ''
   });
 
+  // Búsqueda
+  const [busqueda, setBusqueda] = useState('');
+
   // Estado de paginación
   const [paginaActual, setPaginaActual] = useState(1);
   const elementosPorPagina = 5;
 
-  // Calcular datos paginados
+  // Filtrar clientes por nombre o documento
+  const clientesFiltrados = useMemo(() => {
+    if (!busqueda.trim()) return clientes;
+    const termino = busqueda.toLowerCase().trim();
+    return clientes.filter((c) =>
+      c.nombre_completo?.toLowerCase().includes(termino) ||
+      c.documento?.toLowerCase().includes(termino)
+    );
+  }, [clientes, busqueda]);
+
+  // Calcular datos paginados (sobre resultados filtrados)
   const indiceInicio = (paginaActual - 1) * elementosPorPagina;
   const indiceFin = indiceInicio + elementosPorPagina;
-  const clientesPaginados = clientes.slice(indiceInicio, indiceFin);
-  const totalPaginas = Math.ceil(clientes.length / elementosPorPagina);
+  const clientesPaginados = clientesFiltrados.slice(indiceInicio, indiceFin);
+  const totalPaginas = Math.ceil(clientesFiltrados.length / elementosPorPagina);
 
   // Cargar clientes al montar el componente
   useEffect(() => {
@@ -230,6 +243,25 @@ const PaginaClientes = () => {
           {error}
         </div>
       )}
+
+      {/* Buscador */}
+      <div className="mb-3">
+        <input
+          type="text"
+          className="form-control"
+          placeholder="Buscar por nombre o número de documento..."
+          value={busqueda}
+          onChange={(e) => {
+            setBusqueda(e.target.value);
+            setPaginaActual(1);
+          }}
+        />
+        {busqueda && (
+          <small className="text-muted">
+            {clientesFiltrados.length} cliente(s) encontrado(s) para "{busqueda}"
+          </small>
+        )}
+      </div>
 
       {/* Tabla de Clientes */}
       <div className="card shadow-sm border-0">

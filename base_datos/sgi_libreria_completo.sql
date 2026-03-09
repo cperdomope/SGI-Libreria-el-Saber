@@ -5,8 +5,8 @@
 -- Proyecto SENA - Tecnólogo en Análisis y Desarrollo de Software
 --
 -- AUTOR: Equipo de Desarrollo SGI
--- VERSIÓN: 2.1.0
--- FECHA: Diciembre 2024
+-- VERSIÓN: 3.0.0
+-- FECHA: Marzo 2026
 --
 -- PREFIJO DE TABLAS: mdc_
 -- (Evita conflictos en hosting compartido)
@@ -104,6 +104,7 @@ CREATE TABLE mdc_categorias (
 CREATE TABLE mdc_libros (
     id INT AUTO_INCREMENT PRIMARY KEY,
     isbn VARCHAR(20) UNIQUE COMMENT 'ISBN-13 del libro',
+    portada VARCHAR(255) NULL COMMENT 'Nombre del archivo de imagen de portada (carpeta uploads/portadas/)',
     titulo VARCHAR(150) NOT NULL,
     descripcion TEXT,
     precio_venta DECIMAL(10, 2) NOT NULL COMMENT 'Precio en COP',
@@ -124,7 +125,7 @@ CREATE TABLE mdc_libros (
 -- =====================================================
 
 -- 4.1 Tabla de Movimientos (Kardex)
--- Registro de entradas y salidas de inventario
+-- Registro de entradas y salidas de inventario con auditoría completa
 CREATE TABLE mdc_movimientos (
     id INT AUTO_INCREMENT PRIMARY KEY,
     libro_id INT NOT NULL,
@@ -134,9 +135,14 @@ CREATE TABLE mdc_movimientos (
     stock_anterior INT COMMENT 'Stock antes del movimiento',
     stock_nuevo INT COMMENT 'Stock después del movimiento',
     observaciones TEXT,
+    proveedor_id INT NULL COMMENT 'Proveedor que suministró los libros (solo para ENTRADA)',
+    costo_compra DECIMAL(10, 2) NULL COMMENT 'Precio unitario de compra al proveedor',
     fecha_movimiento TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (libro_id) REFERENCES mdc_libros(id) ON DELETE RESTRICT,
-    FOREIGN KEY (usuario_id) REFERENCES mdc_usuarios(id) ON DELETE RESTRICT
+    FOREIGN KEY (usuario_id) REFERENCES mdc_usuarios(id) ON DELETE RESTRICT,
+    CONSTRAINT fk_movimiento_proveedor
+        FOREIGN KEY (proveedor_id) REFERENCES mdc_proveedores(id)
+        ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB COMMENT='Kardex de movimientos de inventario';
 
 -- 4.2 Tabla de Clientes
@@ -285,6 +291,7 @@ CREATE INDEX idx_ventas_fecha ON mdc_ventas(fecha_venta);
 CREATE INDEX idx_ventas_cliente ON mdc_ventas(cliente_id);
 CREATE INDEX idx_movimientos_fecha ON mdc_movimientos(fecha_movimiento);
 CREATE INDEX idx_movimientos_libro ON mdc_movimientos(libro_id);
+CREATE INDEX idx_movimientos_proveedor ON mdc_movimientos(proveedor_id);
 CREATE INDEX idx_clientes_nombre ON mdc_clientes(nombre_completo);
 CREATE INDEX idx_clientes_documento ON mdc_clientes(documento);
 CREATE INDEX idx_usuarios_email ON mdc_usuarios(email);

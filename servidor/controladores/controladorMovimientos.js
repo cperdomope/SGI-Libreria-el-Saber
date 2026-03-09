@@ -78,7 +78,7 @@ const TIPOS_MOVIMIENTO = {
  * }
  */
 exports.registrarMovimiento = async (req, res) => {
-  let { libro_id, tipo_movimiento, cantidad, observaciones } = req.body;
+  let { libro_id, tipo_movimiento, cantidad, observaciones, proveedor_id, costo_compra } = req.body;
 
   // ─────────────────────────────────────────────────
   // VALIDACIÓN DE ENTRADA
@@ -116,6 +116,59 @@ exports.registrarMovimiento = async (req, res) => {
       exito: false,
       mensaje: `Tipo de movimiento inválido. Use: ${Object.values(TIPOS_MOVIMIENTO).join(' o ')}`
     });
+  }
+
+  // ─────────────────────────────────────────────────
+  // VALIDACIÓN DE COMPRA A PROVEEDOR (solo ENTRADA)
+  // proveedor_id y costo_compra son OBLIGATORIOS para ENTRADA.
+  // Nota: costo_compra = 0 es válido (libros donados), por eso
+  // no se usa !costo_compra sino verificación explícita de ausencia.
+  // ─────────────────────────────────────────────────
+
+  let proveedorIdFinal = null;
+  let costoCompraFinal = null;
+
+  if (tipo_movimiento === TIPOS_MOVIMIENTO.ENTRADA) {
+    // Validar presencia de proveedor_id
+    if (!proveedor_id || proveedor_id === '') {
+      return res.status(400).json({
+        exito: false,
+        mensaje: 'El proveedor es obligatorio para registrar una entrada de inventario'
+      });
+    }
+
+    // Validar presencia de costo_compra (0 es válido: libros donados)
+    if (costo_compra === undefined || costo_compra === null || costo_compra === '') {
+      return res.status(400).json({
+        exito: false,
+        mensaje: 'El costo de compra es obligatorio para registrar una entrada de inventario'
+      });
+    }
+
+    // Validar formato de proveedor_id
+    proveedorIdFinal = parseInt(proveedor_id, 10);
+    if (isNaN(proveedorIdFinal) || proveedorIdFinal <= 0) {
+      return res.status(400).json({
+        exito: false,
+        mensaje: 'El proveedor_id debe ser un número entero positivo'
+      });
+    }
+
+    // Validar formato de costo_compra
+    costoCompraFinal = parseFloat(costo_compra);
+    if (isNaN(costoCompraFinal)) {
+      return res.status(400).json({
+        exito: false,
+        mensaje: 'El costo de compra debe ser un número válido'
+      });
+    }
+    if (costoCompraFinal < 0) {
+      return res.status(400).json({
+        exito: false,
+        mensaje: 'El costo de compra no puede ser negativo',
+        codigo: 'COSTO_NEGATIVO'
+      });
+    }
   }
 
   // Validar autenticación
@@ -158,6 +211,30 @@ exports.registrarMovimiento = async (req, res) => {
     const libro = libroRows[0];
 
     // ─────────────────────────────────────────────────
+    // VERIFICAR EXISTENCIA DEL PROVEEDOR (solo ENTRADA)
+    // Previene manipulación de peticiones con IDs falsos.
+    // Se hace dentro de la transacción para garantizar
+    // consistencia incluso si el proveedor se elimina
+    // justo entre la validación y el INSERT.
+    // ─────────────────────────────────────────────────
+
+    if (tipo_movimiento === TIPOS_MOVIMIENTO.ENTRADA) {
+      const [proveedorRows] = await connection.query(
+        'SELECT id FROM mdc_proveedores WHERE id = ?',
+        [proveedorIdFinal]
+      );
+
+      if (proveedorRows.length === 0) {
+        await connection.rollback();
+        return res.status(404).json({
+          exito: false,
+          mensaje: 'El proveedor especificado no existe en el sistema',
+          codigo: 'PROVEEDOR_NOT_FOUND'
+        });
+      }
+    }
+
+    // ─────────────────────────────────────────────────
     // VALIDAR STOCK PARA SALIDAS
     // Evitar stock negativo
     // ─────────────────────────────────────────────────
@@ -177,11 +254,25 @@ exports.registrarMovimiento = async (req, res) => {
     // PASO 1: REGISTRAR MOVIMIENTO EN HISTORIAL
     // ─────────────────────────────────────────────────
 
+    // Capturar stock antes del movimiento para el historial
+    const stockAnterior = libro.stock_actual;
+    const stockNuevo = tipo_movimiento === TIPOS_MOVIMIENTO.ENTRADA
+      ? stockAnterior + cantidad
+      : stockAnterior - cantidad;
+
+    // Insertar movimiento incluyendo proveedor y costo si es una ENTRADA
     await connection.query(
       `INSERT INTO mdc_movimientos
-       (libro_id, tipo_movimiento, cantidad, usuario_id, observaciones)
-       VALUES (?, ?, ?, ?, ?)`,
-      [libro_id, tipo_movimiento, cantidad, req.usuario.id, observaciones || null]
+       (libro_id, tipo_movimiento, cantidad, usuario_id, stock_anterior, stock_nuevo,
+        observaciones, proveedor_id, costo_compra)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        libro_id, tipo_movimiento, cantidad, req.usuario.id,
+        stockAnterior, stockNuevo,
+        observaciones || null,
+        proveedorIdFinal,
+        costoCompraFinal
+      ]
     );
 
     // ─────────────────────────────────────────────────
@@ -220,7 +311,9 @@ exports.registrarMovimiento = async (req, res) => {
         cantidad: cantidad,
         libro: libro.titulo,
         stock_anterior: libro.stock_actual,
-        stock_actual: nuevoStock
+        stock_actual: nuevoStock,
+        // AUDITORÍA: queda registrado quién ejecutó la operación
+        auditado_por: req.usuario.nombre_completo || `Usuario #${req.usuario.id}`
       }
     });
 
@@ -268,14 +361,20 @@ exports.obtenerMovimientos = async (req, res) => {
         m.id,
         m.tipo_movimiento,
         m.cantidad,
+        m.stock_anterior,
+        m.stock_nuevo,
         m.fecha_movimiento,
         m.observaciones,
+        m.costo_compra,
         l.titulo AS libro,
         l.isbn,
-        u.nombre_completo AS usuario
+        u.nombre_completo AS usuario,
+        p.nombre_empresa AS proveedor,
+        p.id AS proveedor_id
       FROM mdc_movimientos m
       JOIN mdc_libros l ON m.libro_id = l.id
       JOIN mdc_usuarios u ON m.usuario_id = u.id
+      LEFT JOIN mdc_proveedores p ON m.proveedor_id = p.id
     `;
 
     const params = [];

@@ -1,538 +1,318 @@
-# Sistema de Gestión de Inventario - Librería
+# SGI Librería El Saber
 
-Sistema completo de gestión de inventario desarrollado como proyecto académico del SENA (Servicio Nacional de Aprendizaje). Permite administrar el inventario de una librería, gestionar ventas, clientes, proveedores, autores y categorías con un sistema de autenticación seguro.
+**Sistema de Gestión de Inventario** para la Librería El Saber.
+Proyecto de grado — SENA, Tecnólogo en Análisis y Desarrollo de Software (ADSO).
 
-## Descripción del Proyecto
+---
 
-Aplicación web completa que implementa un sistema de gestión de inventario para una librería, cumpliendo con las mejores prácticas de desarrollo web, seguridad y normalización de bases de datos (3NF). El sistema permite control completo del inventario mediante un sistema de kardex, gestión de ventas con punto de venta (POS), y administración de entidades relacionadas.
+## Descripción General
 
-### Contexto Académico
+Aplicación web full-stack que digitaliza la operación completa de una librería: gestión de inventario, registro de ventas, control de movimientos (kardex), administración de clientes, proveedores, autores y categorías. Incluye panel de estadísticas en tiempo real y control de acceso por roles.
 
-- **Institución:** SENA (Servicio Nacional de Aprendizaje)
-- **Nivel:** Grado 11
-- **Tipo:** Proyecto de formación técnica
-- **Objetivo:** Aplicar conocimientos de desarrollo web, bases de datos relacionales y seguridad informática
+---
 
-## Características Principales
+## Tecnologías
 
-### Módulos del Sistema
+| Capa | Tecnología |
+|------|-----------|
+| Frontend | React 19 + Vite 7 + Bootstrap 5 |
+| Backend | Node.js + Express 5 |
+| Base de datos | MySQL 8 (Aiven Cloud) |
+| Autenticación | JWT + bcrypt |
+| Formularios | react-hook-form |
+| Gráficas | Recharts |
+| Exportación | jsPDF + xlsx |
+| Subida de archivos | Multer |
+| Pruebas | Jest + Supertest |
 
-1. **Autenticación y Seguridad**
-   - Sistema de login con JWT (JSON Web Tokens)
-   - **Control de Acceso Basado en Roles (RBAC)** - Dos roles: Administrador y Vendedor
-   - Middleware de verificación de roles para protección de endpoints
-   - Protección de rutas en frontend basada en permisos
-   - Protección contra ataques de fuerza bruta (bloqueo después de 3 intentos fallidos por 3 minutos)
-   - Encriptación de contraseñas con bcrypt
-   - Rutas protegidas con verificación de token
-   - CORS configurado para mayor seguridad
-
-2. **Gestión de Inventario**
-   - Registro completo de libros (ISBN, título, descripción, precio, stock)
-   - Control de stock actual y stock mínimo
-   - Alertas de inventario bajo
-   - Relación con autores y categorías
-
-3. **Sistema de Movimientos (Kardex)**
-   - Registro de todas las entradas y salidas de inventario
-   - Auditoría completa de movimientos
-   - Trazabilidad por usuario
-   - Observaciones detalladas por movimiento
-
-4. **Punto de Venta (POS)**
-   - Interfaz moderna para registro de ventas
-   - Selección de cliente y productos
-   - Cálculo automático de totales
-   - Generación de detalles de venta
-   - Actualización automática de inventario
-
-5. **Historial de Ventas**
-   - Visualización de todas las ventas realizadas
-   - Detalles completos de cada venta
-   - Información de cliente y productos vendidos
-   - Exportación de reportes
-
-6. **Gestión de Clientes**
-   - Registro completo de clientes
-   - Datos de contacto y ubicación
-   - Historial de compras
-   - Validación de documento único
-
-7. **Gestión de Proveedores**
-   - Registro de empresas proveedoras
-   - Datos de contacto (NIT, email, teléfono)
-   - Información de ubicación
-   - Historial de relaciones comerciales
-
-8. **Gestión de Autores**
-   - CRUD completo de autores
-   - Validación de asociaciones antes de eliminar
-   - Conteo de libros por autor
-
-9. **Gestión de Categorías**
-   - CRUD completo de categorías
-   - Validación de nombres únicos
-   - Organización del catálogo
-
-10. **Dashboard/Inicio**
-    - Estadísticas generales del sistema
-    - Resumen de inventario
-    - Métricas de ventas
-
-## Tecnologías Utilizadas
-
-### Backend
-
-- **Node.js** - Entorno de ejecución de JavaScript
-- **Express 5.1.0** - Framework web para Node.js
-- **MySQL 2** - Base de datos relacional
-- **JWT (jsonwebtoken 9.0.2)** - Autenticación basada en tokens
-- **bcryptjs 3.0.3** - Encriptación de contraseñas
-- **CORS 2.8.5** - Control de acceso entre orígenes
-- **dotenv 17.2.3** - Gestión de variables de entorno
-
-### Frontend
-
-- **React 19.2.0** - Librería de interfaces de usuario
-- **Vite 7.2.4** - Herramienta de construcción y servidor de desarrollo
-- **React Router DOM 7.9.6** - Enrutamiento en React
-- **Axios 1.13.2** - Cliente HTTP para peticiones API
-- **Bootstrap 5.3.8** - Framework CSS para estilos
-- **ESLint 9.39.1** - Linter para calidad de código
-
-## Estructura de Base de Datos
-
-### Tablas Principales
-
-```
-inventario_libreria/
-├── roles                 # Roles de usuario (Administrador, Vendedor)
-├── usuarios              # Usuarios del sistema con autenticación
-├── autores               # Autores de libros
-├── categorias            # Categorías de libros
-├── libros                # Inventario de libros
-├── movimientos           # Kardex - Entradas y salidas
-├── clientes              # Registro de clientes
-├── proveedores           # Registro de proveedores
-├── ventas                # Cabecera de facturas
-└── detalle_ventas        # Items de cada venta
-```
-
-### Normalización
-
-La base de datos está normalizada en Tercera Forma Normal (3NF):
-- Sin redundancia de datos
-- Separación de entidades en tablas independientes
-- Relaciones mediante claves foráneas
-- Integridad referencial garantizada
-
-## Instalación
-
-### Requisitos Previos
-
-- Node.js (versión 16 o superior)
-- MySQL (versión 8.0 o superior)
-- npm o yarn
-
-### Pasos de Instalación
-
-1. **Clonar el repositorio**
-   ```bash
-   git clone <url-del-repositorio>
-   cd proyecto-inventario
-   ```
-
-2. **Configurar Base de Datos**
-   ```bash
-   mysql -u root -p < base_datos/script_inicial.sql
-   ```
-
-3. **Configurar Backend**
-   ```bash
-   cd servidor
-   npm install
-   ```
-
-4. **Crear archivo .env en la carpeta servidor**
-   ```env
-   PORT=3000
-   DB_HOST=localhost
-   DB_USER=root
-   DB_PASSWORD=tu_password
-   DB_NAME=inventario_libreria
-   JWT_SECRET=tu_clave_secreta_super_segura
-   CORS_ORIGIN=http://localhost:5173
-   ```
-
-5. **Configurar Frontend**
-   ```bash
-   cd ../cliente
-   npm install
-   ```
-
-6. **Crear archivo .env en la carpeta cliente**
-   ```env
-   VITE_API_URL=http://localhost:3000/api
-   ```
-
-## Ejecución
-
-### Iniciar Backend
-```bash
-cd servidor
-node index.js
-```
-El servidor estará disponible en `http://localhost:3000`
-
-### Iniciar Frontend
-```bash
-cd cliente
-npm run dev
-```
-La aplicación estará disponible en `http://localhost:5173`
-
-## Credenciales de Acceso
-
-### Sistema de Roles
-
-El sistema cuenta con **dos roles** con diferentes niveles de acceso:
-
-**Usuario Administrador (Acceso Total):**
-- Email: `admin@sena.edu.co`
-- Contraseña: `admin123`
-- **Permisos:** Acceso completo a todos los módulos del sistema
-
-**Usuario Vendedor (Acceso Limitado):**
-- Email: `vendedor@sena.edu.co`
-- Contraseña: `vendedor123`
-- **Permisos:**
-  - ✅ Punto de Venta (POS) - Registrar ventas
-  - ✅ Historial de Ventas - Consultar ventas realizadas
-  - ✅ Clientes - Ver y crear clientes (no puede editar ni eliminar)
-  - ✅ Inventario - Solo lectura (consultar precios y stock)
-  - ✅ Autores y Categorías - Solo lectura
-  - ❌ Dashboard, Proveedores, Movimientos - Sin acceso
-
-> **Importante:** Cambiar estas credenciales en un entorno de producción
+---
 
 ## Estructura del Proyecto
 
 ```
 proyecto-inventario/
-├── base_datos/                    # Scripts SQL
-│   ├── script_inicial.sql         # Creación de BD y datos semilla
-│   ├── migracion_metodo_pago.sql  # Migraciones adicionales
-│   └── verificar_estructura_ventas.sql
+├── cliente/                  # Frontend React + Vite
+│   ├── src/
+│   │   ├── paginas/          # Vistas principales
+│   │   ├── componentes/      # Componentes reutilizables
+│   │   ├── contexto/         # AuthContext (sesión global)
+│   │   └── servicios/        # Cliente HTTP (axios)
+│   └── public/               # Assets estáticos
 │
-├── servidor/                      # Backend (Node.js + Express)
-│   ├── configuracion/
-│   │   └── db.js                 # Configuración de MySQL
-│   ├── controladores/
-│   │   ├── controladorAuth.js    # Autenticación y login
-│   │   ├── libroControlador.js   # CRUD de libros
-│   │   ├── movimientoControlador.js
-│   │   ├── dashboardControlador.js
-│   │   ├── clienteControlador.js
-│   │   ├── proveedorControlador.js
-│   │   ├── ventaControlador.js
-│   │   ├── autorControlador.js
-│   │   └── categoriaControlador.js
-│   ├── middlewares/
-│   │   ├── verificarToken.js     # Middleware JWT
-│   │   └── verificarRol.js       # Middleware RBAC (roles)
-│   ├── rutas/
-│   │   ├── rutasAuth.js
-│   │   ├── rutasLibros.js
-│   │   ├── rutasMovimientos.js
-│   │   ├── rutasDashboard.js
-│   │   ├── clienteRutas.js
-│   │   ├── proveedorRutas.js
-│   │   ├── ventaRutas.js
-│   │   ├── autorRutas.js
-│   │   └── categoriaRutas.js
-│   ├── scripts/
-│   │   └── reset_password.js     # Script para resetear contraseñas
-│   ├── .env
-│   ├── index.js                  # Punto de entrada del servidor
-│   └── package.json
+├── servidor/                 # Backend Node.js + Express
+│   ├── controladores/        # Lógica de negocio
+│   ├── rutas/                # Endpoints de la API REST
+│   ├── middlewares/          # Auth, roles, errores, uploads
+│   ├── configuracion/        # Conexión a MySQL
+│   ├── scripts/              # Utilidades (reset de contraseñas)
+│   ├── pruebas/              # Tests automatizados
+│   └── uploads/portadas/     # Imágenes de portada de libros
 │
-└── cliente/                       # Frontend (React + Vite)
-    ├── public/
-    ├── src/
-    │   ├── componentes/
-    │   │   ├── BarraNavegacion.jsx      # Menú de navegación con iconos
-    │   │   ├── RutaProtegida.jsx        # HOC para rutas autenticadas
-    │   │   └── RutaProtegidaPorRol.jsx  # HOC para rutas con permisos
-    │   ├── contexto/
-    │   │   └── AuthContext.jsx          # Contexto de autenticación y permisos
-    │   ├── paginas/
-    │   │   ├── Acceso.jsx           # Página de login
-    │   │   ├── Inicio.jsx           # Dashboard
-    │   │   ├── Inventario.jsx       # Gestión de libros
-    │   │   ├── Movimientos.jsx      # Kardex
-    │   │   ├── PaginaClientes.jsx   # Gestión de clientes
-    │   │   ├── PaginaVentas.jsx     # Punto de Venta (POS)
-    │   │   ├── HistorialVentas.jsx  # Historial de ventas
-    │   │   ├── PaginaProveedores.jsx # Gestión de proveedores
-    │   │   ├── PaginaAutores.jsx    # Gestión de autores
-    │   │   └── PaginaCategorias.jsx # Gestión de categorías
-    │   ├── servicios/
-    │   │   └── api.js               # Configuración de Axios con JWT
-    │   ├── App.jsx                  # Componente principal
-    │   └── main.jsx                 # Punto de entrada
-    ├── .env
-    ├── index.html
-    ├── package.json
-    └── vite.config.js
+└── base_datos/
+    └── sgi_libreria_completo.sql  # Script único de instalación
 ```
-
-## API Endpoints
-
-### Autenticación
-- `POST /api/auth/login` - Iniciar sesión
-
-### Libros
-- `GET /api/libros` - Obtener todos los libros
-- `POST /api/libros` - Crear libro
-- `PUT /api/libros/:id` - Actualizar libro
-- `DELETE /api/libros/:id` - Eliminar libro
-
-### Movimientos
-- `GET /api/movimientos` - Obtener historial de movimientos
-- `POST /api/movimientos` - Registrar movimiento
-
-### Clientes
-- `GET /api/clientes` - Obtener clientes
-- `POST /api/clientes` - Crear cliente
-- `PUT /api/clientes/:id` - Actualizar cliente
-- `DELETE /api/clientes/:id` - Eliminar cliente
-
-### Proveedores
-- `GET /api/proveedores` - Obtener proveedores
-- `POST /api/proveedores` - Crear proveedor
-- `PUT /api/proveedores/:id` - Actualizar proveedor
-- `DELETE /api/proveedores/:id` - Eliminar proveedor
-
-### Autores
-- `GET /api/autores` - Obtener autores
-- `POST /api/autores` - Crear autor
-- `PUT /api/autores/:id` - Actualizar autor
-- `DELETE /api/autores/:id` - Eliminar autor (valida asociaciones)
-
-### Categorías
-- `GET /api/categorias` - Obtener categorías
-- `POST /api/categorias` - Crear categoría
-- `PUT /api/categorias/:id` - Actualizar categoría
-- `DELETE /api/categorias/:id` - Eliminar categoría (valida unicidad)
-
-### Ventas
-- `GET /api/ventas` - Obtener historial de ventas
-- `GET /api/ventas/:id` - Obtener detalle de venta
-- `POST /api/ventas` - Registrar venta
-
-### Dashboard
-- `GET /api/dashboard/estadisticas` - Obtener estadísticas generales
-
-> **Nota:** Todos los endpoints (excepto /api/auth/login) requieren autenticación vía token JWT en el header:
-> ```
-> Authorization: Bearer <token>
-> ```
-
-## Seguridad Implementada
-
-### Medidas de Seguridad
-
-1. **Autenticación JWT**
-   - Tokens con expiración
-   - Verificación en cada petición protegida
-   - Almacenamiento seguro en localStorage
-
-2. **Protección de Contraseñas**
-   - Hash con bcrypt (10 rounds)
-   - No se almacenan contraseñas en texto plano
-   - Script de reseteo seguro
-
-3. **Protección contra Fuerza Bruta**
-   - Bloqueo temporal de cuenta (3 minutos) después de 3 intentos fallidos
-   - Mensajes informativos sin revelar si el usuario existe
-   - Contador de intentos restantes
-
-4. **CORS Configurado**
-   - Solo acepta peticiones del origen especificado en .env
-   - Credentials habilitadas para cookies y headers
-
-5. **Variables de Entorno**
-   - Datos sensibles en archivos .env
-   - No se suben al repositorio (.gitignore)
-   - Configuración separada por entorno
-
-6. **Control de Acceso Basado en Roles (RBAC)**
-   - Sistema de roles jerárquicos (Administrador, Vendedor)
-   - Middleware de verificación de roles en backend
-   - Protección de rutas en frontend basada en permisos
-   - Ocultamiento de elementos UI según permisos
-   - Doble capa de seguridad: Frontend + Backend
-
-7. **Validación de Datos**
-   - Validación en backend de todos los campos
-   - Verificación de integridad referencial
-   - Prevención de duplicados
-
-## Mejoras y Actualizaciones Recientes
-
-### Versión Actual (Diciembre 8, 2025)
-
-#### Mejoras de Navegación y Experiencia de Usuario
-- **Navbar fijo (sticky):** El menú de navegación permanece visible al hacer scroll en páginas largas
-- **Menús desplegables rediseñados:** Nuevo color de fondo suave (#f0f5f4) para mejor contraste
-- **Efecto hover mejorado en dropdowns:** Resaltado visual con sage green y animación de deslizamiento
-- **Transiciones suaves:** Feedback visual inmediato al interactuar con opciones del menú
-- **Mejor usabilidad:** Navegación más intuitiva en módulos de Gestión Comercial y Logística
-- **Z-index optimizado:** Navbar siempre visible sobre el contenido de la página
-
-#### Unificación Visual y Mejoras de UI (Versión anterior del mismo día)
-- **Estandarización de colores:** Todos los modales y botones ahora usan el esquema de color evergreen (#053225)
-- **Headers de modales unificados:** Cambio de gradiente verde/teal a color sólido evergreen (bg-primary)
-- **Botones de editar actualizados:** Color cambiado de azul (#3498DB) a evergreen para consistencia
-- **Posicionamiento de botones "+":** Movidos a esquina superior derecha usando flexbox
-- **Clase CSS .module-header:** Nueva clase para encabezados de módulos con diseño responsivo
-- **Experiencia visual mejorada:** Interfaz 100% consistente en toda la aplicación
-
-### Versión Anterior (Diciembre 7, 2025)
-
-#### Sistema de Control de Acceso por Roles (RBAC)
-- **Implementación completa de roles:** Administrador y Vendedor
-- **Middleware verificarRol.js:** Protección de endpoints por rol
-- **Componente RutaProtegidaPorRol:** Protección de rutas en frontend
-- **Sistema de permisos granular:** Control específico por acción (ver, crear, editar, eliminar)
-- **Validación de permisos en UI:** Ocultamiento de botones según rol
-- **Doble capa de seguridad:** Frontend oculta opciones + Backend bloquea peticiones
-- **Scripts de verificación:** Herramientas para probar el sistema RBAC
-
-#### Nuevas Funcionalidades
-- Implementación completa de gestión de Autores (CRUD)
-- Implementación completa de gestión de Categorías (CRUD)
-- Selects dinámicos en Inventario cargados desde API
-- Validación de asociaciones antes de eliminar autores
-- Prevención de categorías duplicadas
-
-#### Mejoras de UI/UX
-- Tabla de proveedores completamente responsiva con breakpoints Bootstrap
-- Efecto hover mejorado en tabla de proveedores (color verde #c3f0ca)
-- Centralización de texto en todas las tablas
-- Scroll horizontal para tablas en dispositivos móviles
-- Prevención de traducción automática en campos técnicos (atributo translate="no")
-- Iconos SVG personalizados para menú de navegación
-- Mejora en mensajes de error de autenticación
-
-#### Seguridad
-- Reducción de tiempo de bloqueo de 15 a 3 minutos (apropiado para entorno educativo)
-- Mensajes de error más profesionales y claros
-- Corrección en script de reseteo de contraseñas
-
-#### Correcciones
-- Fix: Campo "Dirección" ahora visible en tabla de proveedores
-- Fix: Campo "Documento" ya no aparece en mayúsculas
-- Fix: Modales funcionando correctamente
-- Fix: Responsividad de botones de acción en tablas
-
-## Uso del Sistema
-
-### Flujo de Trabajo Típico
-
-1. **Inicio de Sesión**
-   - Acceder a la aplicación
-   - Ingresar credenciales
-   - Sistema verifica y genera token JWT
-
-2. **Configuración Inicial**
-   - Registrar autores de libros
-   - Crear categorías de clasificación
-   - Registrar proveedores
-
-3. **Gestión de Inventario**
-   - Agregar libros al catálogo
-   - Asociar con autor y categoría
-   - Definir precios y stock mínimo
-
-4. **Registro de Movimientos**
-   - Registrar entradas (compras a proveedores)
-   - Sistema actualiza stock automáticamente
-   - Agregar observaciones relevantes
-
-5. **Gestión de Clientes**
-   - Registrar nuevos clientes
-   - Actualizar información de contacto
-   - Consultar historial de compras
-
-6. **Proceso de Venta**
-   - Acceder al módulo POS
-   - Seleccionar cliente
-   - Agregar productos al carrito
-   - Confirmar venta
-   - Sistema genera factura y actualiza inventario
-
-7. **Reportes y Consultas**
-   - Consultar historial de ventas
-   - Ver detalles de transacciones
-   - Analizar estadísticas en dashboard
-
-## Pruebas
-
-### Datos de Prueba
-
-El sistema incluye datos semilla para facilitar las pruebas:
-- 2 roles (Administrador, Vendedor)
-- 1 usuario administrador
-- 5 categorías
-- 4 autores
-- 3 libros de ejemplo
-- 3 clientes de prueba
-- 2 proveedores de prueba
-
-## Solución de Problemas
-
-### Error: No se puede conectar a la base de datos
-- Verificar que MySQL esté corriendo
-- Confirmar credenciales en archivo .env
-- Verificar que la base de datos existe
-
-### Error: Token inválido o expirado
-- Cerrar sesión y volver a iniciar
-- Verificar JWT_SECRET en .env del servidor
-
-### Error: CORS bloqueando peticiones
-- Verificar CORS_ORIGIN en .env del servidor
-- Confirmar que coincide con la URL del frontend
-
-### Error: No se pueden eliminar autores/categorías
-- Sistema valida que no haya libros asociados
-- Primero eliminar o reasignar libros relacionados
-
-## Contribuciones
-
-Este es un proyecto académico del SENA. Para contribuir:
-
-1. Fork del repositorio
-2. Crear rama de feature (`git checkout -b feature/NuevaFuncionalidad`)
-3. Commit de cambios (`git commit -m 'Agregar nueva funcionalidad'`)
-4. Push a la rama (`git push origin feature/NuevaFuncionalidad`)
-5. Crear Pull Request
-
-## Licencia
-
-Este proyecto fue desarrollado con fines educativos para el SENA (Servicio Nacional de Aprendizaje).
-
-## Autores
-
-Proyecto desarrollado por estudiantes de Grado 11 - SENA
-
-## Contacto y Soporte
-
-Para preguntas o soporte sobre este proyecto académico, contactar a través de los canales institucionales del SENA.
 
 ---
 
-**Proyecto SENA - Sistema de Gestión de Inventario para Librería**
+## Módulos de la Aplicación
 
-*Desarrollado como parte del programa de formación técnica - 2025*
+### 1. Autenticación (`/`)
+- Formulario de login con validación en tiempo real (react-hook-form)
+- Bloqueo de cuenta tras 3 intentos fallidos
+- Barra de progreso de intentos restantes
+- Sesión persistida en `localStorage` mediante JWT
+- Botón mostrar/ocultar contraseña
+
+### 2. Dashboard — Panel de Administración (`/inicio`)
+> Solo accesible para el rol **Administrador**
+
+- Tarjetas con métricas: ventas del día, ventas del mes, total de libros y clientes
+- **Gráfica de barras** — ventas e ingresos de los últimos 6 meses (Recharts)
+- **Gráfica de torta** — distribución de libros por categoría (Recharts)
+- Top 5 productos más vendidos con ingresos generados
+- Top 5 mejores clientes por número de compras
+- Alertas de libros con stock por debajo del mínimo
+
+### 3. Inventario (`/inventario`)
+> Accesible para **Administrador** y **Vendedor**
+
+- Tabla de libros con miniatura de portada, ISBN, autor, categoría, precio y stock
+- Búsqueda en tiempo real por título, autor o ISBN (filtrado sin petición al servidor)
+- Indicadores visuales de stock: Normal / Stock Bajo / Agotado
+- **Crear libro**: modal con todos los campos + subida de imagen de portada (JPG/PNG/WebP, máx. 2 MB)
+- **Editar libro**: carga datos actuales, permite cambiar portada mostrando previsualización
+- **Eliminar libro**: confirmación con `window.confirm`, elimina también el archivo de portada del servidor
+
+### 4. Movimientos — Kardex (`/movimientos`)
+> Accesible para **Administrador** y **Vendedor**
+
+- Registro de movimientos **ENTRADA** y **SALIDA** de inventario
+- Para entradas: proveedor y costo de compra **obligatorios** (validados en frontend y backend)
+- Validación de que el proveedor exista en la base de datos (dentro de transacción ACID)
+- Bloqueo de costos negativos
+- Registro del usuario responsable en cada movimiento (auditoría)
+- Historial con columnas: libro, tipo, cantidad, stock anterior → nuevo, proveedor, costo, responsable, fecha
+
+### 5. Registro de Ventas (`/ventas`)
+> Accesible para **Administrador** y **Vendedor**
+
+- Selección de cliente y búsqueda dinámica
+- Carrito de compra con múltiples ítems
+- Selección de método de pago: Efectivo, Tarjeta, Transferencia, Mixto
+- Descuentos por venta
+- El backend recalcula y valida el total (no confía en el frontend)
+- Descuento automático del stock al confirmar la venta (transacción ACID)
+
+### 6. Historial de Ventas (`/historial-ventas`)
+> Solo accesible para el rol **Administrador**
+
+- Tabla de todas las ventas con estado visual (badge): Completada / Anulada
+- Filtro por rango de fechas
+- Búsqueda por cliente o número de venta
+- **Anular venta**: confirmación con `window.confirm`, revierte el stock automáticamente
+- **Exportar a Excel** (xlsx): descarga la tabla filtrada
+- **Exportar a PDF** (jsPDF): genera documento con resumen de ventas
+
+### 7. Clientes (`/clientes`)
+- CRUD completo de clientes
+- Tipos de documento: CC, NIT, CE, PP
+- Búsqueda en tiempo real por nombre o documento
+- Validación de documento único
+
+### 8. Gestión de Usuarios (`/admin/usuarios`)
+> Solo accesible para el rol **Administrador**
+
+- Tabla de usuarios con nombre, email, rol (badge), estado (Activo/Inactivo) y último acceso
+- **Crear usuario**: nombre, email, contraseña (mín. 6 caracteres) y rol
+- **Editar usuario**: modifica nombre, email y rol (sin contraseña)
+- **Activar / Desactivar**: un usuario inactivo no puede iniciar sesión; el administrador no puede desactivarse a sí mismo
+- Validación completa con react-hook-form + mensajes de error por campo
+
+### 9. Cambiar Contraseña
+> Disponible para **todos los usuarios autenticados**
+
+- Modal accesible desde la barra de navegación
+- Requiere contraseña actual para confirmar identidad
+- Validación de coincidencia entre nueva contraseña y confirmación
+- Mínimo 6 caracteres para la nueva contraseña
+
+### 10. Proveedores (`/proveedores`)
+- CRUD completo de proveedores (empresas suministradoras)
+- Campos: nombre empresa, NIT, contacto, email, teléfono, dirección
+- Activar / Desactivar proveedores
+
+### 11. Autores (`/autores`)
+- CRUD de autores con nombre y nacionalidad
+
+### 12. Categorías (`/categorias`)
+- CRUD de categorías de libros
+
+---
+
+## Sistema de Roles (RBAC)
+
+| Módulo | Administrador | Vendedor |
+|--------|:---:|:---:|
+| Dashboard | ✅ | ❌ |
+| Inventario | ✅ | ✅ |
+| Movimientos | ✅ | ✅ |
+| Ventas | ✅ | ✅ |
+| Historial de Ventas | ✅ | ❌ |
+| Clientes | ✅ | ✅ |
+| Gestión de Usuarios | ✅ | ❌ |
+| Proveedores | ✅ | ✅ |
+| Autores | ✅ | ✅ |
+| Categorías | ✅ | ✅ |
+| Cambiar Contraseña | ✅ | ✅ |
+
+---
+
+## API REST — Endpoints
+
+| Método | Ruta | Descripción | Rol |
+|--------|------|-------------|-----|
+| POST | `/api/auth/login` | Iniciar sesión | Público |
+| GET | `/api/libros` | Listar libros | Auth |
+| POST | `/api/libros` | Crear libro (con portada) | Admin |
+| PUT | `/api/libros/:id` | Actualizar libro | Admin |
+| DELETE | `/api/libros/:id` | Eliminar libro | Admin |
+| GET | `/api/movimientos` | Historial kardex | Auth |
+| POST | `/api/movimientos` | Registrar movimiento | Auth |
+| GET | `/api/ventas` | Listar ventas | Admin |
+| POST | `/api/ventas` | Crear venta | Auth |
+| PATCH | `/api/ventas/:id/anular` | Anular venta | Admin |
+| GET | `/api/clientes` | Listar clientes | Auth |
+| POST | `/api/clientes` | Crear cliente | Auth |
+| PUT | `/api/clientes/:id` | Actualizar cliente | Auth |
+| GET | `/api/dashboard` | Estadísticas globales | Admin |
+| GET | `/api/usuarios` | Listar usuarios | Admin |
+| POST | `/api/usuarios` | Crear usuario | Admin |
+| PUT | `/api/usuarios/:id` | Actualizar usuario | Admin |
+| PATCH | `/api/usuarios/:id/estado` | Activar/Desactivar | Admin |
+| PATCH | `/api/usuarios/cambiar-password` | Cambiar contraseña | Auth |
+| GET | `/api/proveedores` | Listar proveedores | Auth |
+| GET | `/api/autores` | Listar autores | Auth |
+| GET | `/api/categorias` | Listar categorías | Auth |
+
+---
+
+## Base de Datos
+
+**Motor:** MySQL 8 — InnoDB (transaccional) — Charset utf8mb4
+**Prefijo de tablas:** `mdc_`
+
+### Tablas
+
+| Tabla | Descripción |
+|-------|-------------|
+| `mdc_roles` | Roles del sistema (Administrador, Vendedor) |
+| `mdc_usuarios` | Cuentas de usuario con hash bcrypt y JWT |
+| `mdc_libros` | Inventario principal con stock y portada |
+| `mdc_autores` | Catálogo de autores |
+| `mdc_categorias` | Clasificación de libros |
+| `mdc_movimientos` | Kardex: entradas y salidas con auditoría |
+| `mdc_clientes` | Registro de clientes para facturación |
+| `mdc_proveedores` | Empresas suministradoras |
+| `mdc_ventas` | Cabecera de facturas |
+| `mdc_detalle_ventas` | Ítems de cada factura (ON DELETE CASCADE) |
+
+### Vistas
+- `v_libros_stock_bajo` — Libros en o por debajo del stock mínimo
+- `v_ventas_hoy` — Resumen de ventas del día actual
+- `v_catalogo_libros` — Catálogo con estado de stock calculado
+
+---
+
+## Seguridad
+
+- **JWT** con expiración configurable vía `.env`
+- **bcrypt** (salt rounds: 10) para almacenamiento de contraseñas
+- **Rate limiting** en endpoints de autenticación (protección contra fuerza bruta)
+- **RBAC** — verificación de rol en cada ruta protegida
+- **Bloqueo de cuenta** tras 3 intentos fallidos de login
+- **CORS** restringido al origen configurado en `.env`
+- **Manejo global de errores** — nunca expone detalles internos en producción
+- **Validación doble** — frontend (react-hook-form) + backend (Express)
+- **Transacciones ACID** en operaciones críticas (ventas, movimientos)
+- **Archivos estáticos** con validación de tipo MIME y extensión (solo imágenes)
+
+---
+
+## Instalación Local
+
+### Requisitos
+- Node.js 18+
+- MySQL 8+ (local o Aiven Cloud)
+
+### 1. Base de datos
+```bash
+mysql -u root -p < base_datos/sgi_libreria_completo.sql
+```
+
+### 2. Backend
+```bash
+cd servidor
+cp .env.example .env        # Completar variables de entorno
+npm install
+node scripts/reset_password.js  # Generar hashes bcrypt iniciales
+npm start                   # Puerto 3000 por defecto
+```
+
+### 3. Frontend
+```bash
+cd cliente
+cp .env.example .env        # Configurar VITE_API_URL
+npm install
+npm run dev                 # http://localhost:5173
+```
+
+### Credenciales por defecto
+| Usuario | Email | Contraseña | Rol |
+|---------|-------|------------|-----|
+| Administrador | `admin@sena.edu.co` | `123456` | Administrador |
+| Vendedor | `vendedor@sena.edu.co` | `vendedor123` | Vendedor |
+
+> Las contraseñas son válidas solo después de ejecutar `node scripts/reset_password.js`
+
+---
+
+## Variables de Entorno
+
+### `servidor/.env`
+```
+PORT=3000
+DB_HOST=...
+DB_PORT=...
+DB_USER=...
+DB_PASSWORD=...
+DB_NAME=inventario_libreria
+JWT_SECRET=...
+JWT_EXPIRES_IN=8h
+NODE_ENV=development
+CORS_ORIGIN=http://localhost:5173
+```
+
+### `cliente/.env`
+```
+VITE_API_URL=http://localhost:3000/api
+```
+
+---
+
+## Pruebas Automatizadas
+
+```bash
+cd servidor
+npm test
+```
+
+Suites disponibles:
+- `pruebas/auth.test.js` — Login, tokens JWT, rutas protegidas (5 casos)
+- `pruebas/clientes.test.js` — CRUD clientes, permisos (4 casos)
+- `pruebas/ventas.test.js` — Creación, validación de totales, seguridad (5 casos)
+
+---
+
+## Autores
+
+Proyecto desarrollado por estudiantes de Tecnología en ADSO — SENA, Centro de Gestión de Mercados, Logística y TI.

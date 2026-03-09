@@ -49,6 +49,7 @@ import PaginaProveedores from './paginas/PaginaProveedores';
 import PaginaAutores from './paginas/PaginaAutores';
 import PaginaCategorias from './paginas/PaginaCategorias';
 import Acceso from './paginas/Acceso';
+import AdminUsuarios from './paginas/AdminUsuarios';
 
 // =====================================================
 // CONTEXTO
@@ -287,6 +288,20 @@ function App() {
                 <RutaProtegidaPorRol permiso="verCategorias">
                   <LayoutPrincipal>
                     <PaginaCategorias />
+                  </LayoutPrincipal>
+                </RutaProtegidaPorRol>
+              </RutaProtegida>
+            }
+          />
+
+          {/* USUARIOS - Solo Administradores */}
+          <Route
+            path="/admin/usuarios"
+            element={
+              <RutaProtegida>
+                <RutaProtegidaPorRol permiso="gestionarUsuarios">
+                  <LayoutPrincipal>
+                    <AdminUsuarios />
                   </LayoutPrincipal>
                 </RutaProtegidaPorRol>
               </RutaProtegida>

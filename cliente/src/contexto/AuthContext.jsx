@@ -126,7 +126,10 @@ export const PERMISOS = {
     verVentas: true,
 
     // Movimientos - Kardex de inventario
-    registrarMovimiento: true
+    registrarMovimiento: true,
+
+    // Administración de usuarios - Solo Administrador
+    gestionarUsuarios: true
   },
 
   // ─────────────────────────────────────────────────
@@ -171,7 +174,10 @@ export const PERMISOS = {
     verVentas: true,
 
     // Movimientos - Sin acceso (modifica inventario directamente)
-    registrarMovimiento: false
+    registrarMovimiento: false,
+
+    // Administración de usuarios - Sin acceso
+    gestionarUsuarios: false
   }
 };
 

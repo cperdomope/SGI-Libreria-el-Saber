@@ -29,6 +29,16 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../servicios/api';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  PieChart, Pie, Cell
+} from 'recharts';
+
+// Paleta de colores para la gráfica de torta
+const COLORES_GRAFICAS = [
+  '#0d6efd', '#198754', '#0dcaf0', '#ffc107', '#dc3545',
+  '#6f42c1', '#fd7e14', '#20c997', '#6c757d', '#d63384'
+];
 
 // =====================================================
 // ICONOS SVG (Bootstrap Icons - MIT License)
@@ -439,6 +449,86 @@ const Inicio = () => {
                     </tbody>
                   </table>
                 </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ─────────────────────────────────────────────────
+          GRÁFICAS - ANÁLISIS VISUAL
+          ───────────────────────────────────────────────── */}
+      <div className="row g-4 mt-2">
+
+        {/* Gráfica de Barras: Ventas por Mes */}
+        <div className="col-lg-7">
+          <div className="card shadow-sm border-0">
+            <div className="card-header bg-white border-bottom">
+              <h5 className="mb-0 fw-bold">Ventas por Mes (últimos 6 meses)</h5>
+            </div>
+            <div className="card-body">
+              {(estadisticas.ventas_por_mes?.length || 0) === 0 ? (
+                <p className="text-center text-muted py-4">Sin datos de ventas mensuales</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart
+                    data={estadisticas.ventas_por_mes}
+                    margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} />
+                    <Tooltip
+                      formatter={(value, name) =>
+                        name === 'ingresos'
+                          ? [formatearPrecio(value), 'Ingresos']
+                          : [value, 'N° Ventas']
+                      }
+                    />
+                    <Legend />
+                    <Bar dataKey="ventas" fill="#0d6efd" name="N° Ventas" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="ingresos" fill="#198754" name="Ingresos" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Gráfica de Torta: Libros por Categoría */}
+        <div className="col-lg-5">
+          <div className="card shadow-sm border-0">
+            <div className="card-header bg-white border-bottom">
+              <h5 className="mb-0 fw-bold">Libros por Categoría</h5>
+            </div>
+            <div className="card-body">
+              {(estadisticas.libros_por_categoria?.length || 0) === 0 ? (
+                <p className="text-center text-muted py-4">Sin categorías registradas</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={280}>
+                  <PieChart>
+                    <Pie
+                      data={estadisticas.libros_por_categoria}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={90}
+                      dataKey="total"
+                      nameKey="categoria"
+                      label={({ categoria, percent }) =>
+                        `${categoria} (${(percent * 100).toFixed(0)}%)`
+                      }
+                      labelLine={true}
+                    >
+                      {estadisticas.libros_por_categoria.map((_, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={COLORES_GRAFICAS[index % COLORES_GRAFICAS.length]}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value) => [value, 'Libros']} />
+                  </PieChart>
+                </ResponsiveContainer>
               )}
             </div>
           </div>

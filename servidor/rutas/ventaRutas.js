@@ -15,4 +15,7 @@ router.get('/', verificarToken, administradorOVendedor, ventaControlador.obtener
 // GET: Obtener detalle de una venta específica - Vendedores pueden ver detalles
 router.get('/:id', verificarToken, administradorOVendedor, ventaControlador.obtenerDetalleVenta);
 
+// PATCH: Anular una venta - Solo Administradores (operación crítica)
+router.patch('/:id/anular', verificarToken, ventaControlador.anularVenta);
+
 module.exports = router;
