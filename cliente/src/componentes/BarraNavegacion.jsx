@@ -135,8 +135,7 @@ const BarraNavegacion = () => {
    * @returns {string} Nombre del usuario
    */
   const obtenerNombreUsuario = () => {
-    if (!usuario || !usuario.rol_id) return 'Usuario';
-    return usuario.rol_id === ROLES.ADMINISTRADOR ? 'Luz Darlys' : 'Yaniri Michelle';
+    return usuario?.nombre_completo || 'Usuario';
   };
 
   // ─────────────────────────────────────────────────
@@ -199,15 +198,16 @@ const BarraNavegacion = () => {
         <Link
           className="navbar-brand d-flex align-items-center gap-2 fw-bold"
           to="/"
-          style={{ fontSize: '1.25rem' }}
+          style={{ fontSize: '1.1rem', minWidth: 0 }}
         >
           <div
-            className="bg-white text-primary rounded-circle p-1 d-flex align-items-center justify-content-center"
+            className="bg-white text-primary rounded-circle p-1 d-flex align-items-center justify-content-center flex-shrink-0"
             style={{ width: 35, height: 35 }}
           >
             <IconoLibro />
           </div>
-          <span>SGI Librería el Saber</span>
+          <span className="text-truncate d-none d-sm-inline">SGI Librería el Saber</span>
+          <span className="d-sm-none">SGI</span>
         </Link>
 
         {/* ─────────────────────────────────────────────────

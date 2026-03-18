@@ -5,8 +5,11 @@ const verificarToken = require('../middlewares/verificarToken');
 const { soloAdministrador } = require('../middlewares/verificarRol');
 
 // MOVIMIENTOS: Solo Administradores (ajustes de inventario son sensibles)
-// Ruta POST: Para enviar datos nuevos (registrar una compra o venta)
-// La URL será: http://localhost:3000/api/movimientos
+
+// GET: Obtener historial de movimientos (Kardex)
+router.get('/', verificarToken, soloAdministrador, controladorMovimientos.obtenerMovimientos);
+
+// POST: Registrar nueva entrada o salida de inventario
 router.post('/', verificarToken, soloAdministrador, controladorMovimientos.registrarMovimiento);
 
 module.exports = router;

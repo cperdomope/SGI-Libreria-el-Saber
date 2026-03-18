@@ -344,8 +344,9 @@ const PaginaVentas = () => {
 
         {/* ─────────────────────────────────────────────────
             COLUMNA IZQUIERDA: CATÁLOGO DE LIBROS
+            (en móvil aparece debajo del carrito)
             ───────────────────────────────────────────────── */}
-        <div className="col-md-8">
+        <div className="col-md-8 pos-catalog">
           <div className="mb-3">
             <h3 className="mb-2">Catálogo de Libros</h3>
             <div className="input-group">
@@ -403,9 +404,10 @@ const PaginaVentas = () => {
 
         {/* ─────────────────────────────────────────────────
             COLUMNA DERECHA: RESUMEN DE FACTURACIÓN
+            (en móvil aparece primero)
             ───────────────────────────────────────────────── */}
-        <div className="col-md-4">
-          <div className="card shadow">
+        <div className="col-md-4 pos-cart">
+          <div className="card shadow" style={{ position: 'sticky', top: '1rem' }}>
             <div className="card-header bg-primary text-white">
               <h5 className="mb-0"><IconoUsuario /> Facturación</h5>
             </div>
@@ -428,7 +430,7 @@ const PaginaVentas = () => {
 
               {/* Lista de productos en carrito */}
               <h6>Productos en Carrito:</h6>
-              <ul className="list-group list-group-flush mb-3" style={{ maxHeight: '50vh', overflowY: 'auto' }}>
+              <ul className="list-group list-group-flush mb-3" style={{ maxHeight: '35vh', overflowY: 'auto' }}>
                 {carrito.length === 0 && (
                   <li className="list-group-item text-muted">Carrito vacío</li>
                 )}

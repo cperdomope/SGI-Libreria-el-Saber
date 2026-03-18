@@ -220,13 +220,13 @@ const Inicio = () => {
       {/* ─────────────────────────────────────────────────
           ENCABEZADO CON BOTÓN DE ACTUALIZAR
           ───────────────────────────────────────────────── */}
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <h2 className="fw-bold text-dark mb-0">
-          Panel de Control - Dashboard
+      <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+        <h2 className="fw-bold mb-0" style={{ fontSize: 'clamp(1.1rem, 3vw, 1.75rem)' }}>
+          Panel de Control
         </h2>
         <button
           onClick={cargarEstadisticas}
-          className="btn btn-outline-primary btn-sm"
+          className="btn btn-outline-primary btn-sm flex-shrink-0"
           title="Actualizar estadísticas"
         >
           Actualizar
@@ -416,11 +416,11 @@ const Inicio = () => {
                   <table className="table table-hover table-striped mb-0">
                     <thead className="table-light">
                       <tr>
-                        <th>ID</th>
+                        <th className="d-none d-md-table-cell">ID</th>
                         <th>Título</th>
-                        <th>Autor</th>
-                        <th className="text-center">Stock Actual</th>
-                        <th className="text-center">Stock Mínimo</th>
+                        <th className="d-none d-sm-table-cell">Autor</th>
+                        <th className="text-center">Stock</th>
+                        <th className="text-center d-none d-sm-table-cell">Mínimo</th>
                         <th className="text-center">Faltante</th>
                         <th>Acción</th>
                       </tr>
@@ -428,13 +428,13 @@ const Inicio = () => {
                     <tbody>
                       {estadisticas.libros_stock_bajo.map((libro) => (
                         <tr key={libro.id}>
-                          <td>#{libro.id}</td>
+                          <td className="d-none d-md-table-cell">#{libro.id}</td>
                           <td className="fw-semibold">{libro.titulo}</td>
-                          <td className="text-muted">{libro.autor || 'N/A'}</td>
+                          <td className="text-muted d-none d-sm-table-cell">{libro.autor || 'N/A'}</td>
                           <td className="text-center">
                             <span className="badge bg-danger">{libro.stock_actual}</span>
                           </td>
-                          <td className="text-center">{libro.stock_minimo}</td>
+                          <td className="text-center d-none d-sm-table-cell">{libro.stock_minimo}</td>
                           <td className="text-center text-danger fw-bold">{libro.faltante}</td>
                           <td>
                             <Link

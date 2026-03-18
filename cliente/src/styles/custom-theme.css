@@ -615,3 +615,129 @@ a:hover {
   opacity: 1;
   filter: brightness(0) saturate(100%) invert(18%) sepia(15%) saturate(2000%) hue-rotate(113deg) brightness(90%) contrast(95%);
 }
+
+/* ========================================
+   13. RESPONSIVE - ADAPTACIÓN MÓVIL
+   ======================================== */
+
+/* Prevenir overflow horizontal global */
+body { overflow-x: hidden; }
+.card { min-width: 0; }
+
+/* Module Header: siempre permite wrap */
+.module-header {
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+/* ── Extra pequeño (<576px) ── */
+@media (max-width: 575.98px) {
+  .module-header {
+    padding: 0.85rem 1rem;
+  }
+  .module-header h2 { font-size: 1.1rem; }
+  .module-header h4 { font-size: 1rem; }
+
+  .card-body { padding: 0.85rem; }
+  .card-header { padding: 0.85rem 1rem; }
+
+  .table thead th {
+    padding: 0.55rem 0.4rem;
+    font-size: 0.72rem;
+    letter-spacing: 0.02em;
+  }
+  .table tbody td {
+    padding: 0.55rem 0.4rem;
+    font-size: 0.83rem;
+  }
+
+  /* Botones de acción: tap target mínimo 36px */
+  .action-buttons .btn {
+    min-height: 36px;
+    min-width: 36px;
+    padding: 0.3rem 0.4rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .pagination .page-link {
+    padding: 0.3rem 0.5rem;
+    font-size: 0.8rem;
+  }
+
+  .navbar-brand { font-size: 1rem !important; }
+
+  .card-body h3.fw-bold,
+  .card-body h3 { font-size: 1.5rem; }
+
+  /* Botones de acceso rápido: apilados */
+  .d-flex.flex-wrap.gap-3 .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ── Pequeño (<768px) ── */
+@media (max-width: 767.98px) {
+  .container-fluid {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+  .input-group { flex-wrap: nowrap; }
+  .alert { font-size: 0.88rem; }
+
+  /* POS - carrito primero en móvil */
+  .pos-catalog { order: 2; }
+  .pos-cart { order: 1; margin-bottom: 1rem; }
+}
+
+/* Scroll horizontal táctil fluido */
+.table-responsive { -webkit-overflow-scrolling: touch; }
+
+/* ── Navbar colapsado: estilos mejorados ── */
+@media (max-width: 991.98px) {
+  .navbar-collapse .navbar-nav .nav-link {
+    padding-left: 0.75rem;
+    border-radius: 6px;
+    margin-bottom: 2px;
+  }
+  .navbar-collapse .dropdown-menu {
+    border: none;
+    background-color: rgba(255,255,255,0.08);
+    box-shadow: none;
+    padding-left: 1rem;
+  }
+  .navbar-collapse .dropdown-item {
+    color: rgba(255,255,255,0.85);
+    border-radius: 4px;
+  }
+  .navbar-collapse .dropdown-item:hover {
+    background-color: rgba(255,255,255,0.15);
+    color: #fff;
+    transform: none;
+    padding-left: 1.25rem;
+  }
+  /* Separador de usuario en móvil */
+  .navbar-collapse .border-start {
+    border-left: none !important;
+    padding-left: 0 !important;
+    margin-left: 0 !important;
+    border-top: 1px solid rgba(255,255,255,0.2) !important;
+    padding-top: 0.75rem;
+  }
+}
+
+/* ── Modales en pantallas muy pequeñas ── */
+@media (max-width: 575.98px) {
+  .modal-dialog:not(.modal-fullscreen-sm-down) {
+    margin: 0.5rem;
+  }
+  .modal-footer {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .modal-footer .btn {
+    width: 100%;
+  }
+}

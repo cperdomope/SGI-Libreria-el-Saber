@@ -434,7 +434,7 @@ exports.login = async (req, res) => {
       token,
       usuario: {
         id: usuario.id,
-        nombre: usuario.nombre_completo,
+        nombre_completo: usuario.nombre_completo,
         email: usuario.email,
         rol_id: usuario.rol_id
       }

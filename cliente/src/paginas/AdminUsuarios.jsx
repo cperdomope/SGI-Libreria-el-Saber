@@ -204,9 +204,9 @@ const AdminUsuarios = () => {
       <div className="card shadow-sm">
 
         {/* ── ENCABEZADO ── */}
-        <div className="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-          <h4 className="mb-0">Gestión de Usuarios del Sistema</h4>
-          <button className="btn btn-sm btn-light" onClick={abrirModalNuevo}>
+        <div className="card-header bg-dark text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <h4 className="mb-0" style={{ fontSize: 'clamp(1rem, 3vw, 1.4rem)' }}>Gestión de Usuarios</h4>
+          <button className="btn btn-sm btn-light flex-shrink-0" onClick={abrirModalNuevo}>
             + Nuevo Usuario
           </button>
         </div>
@@ -220,10 +220,10 @@ const AdminUsuarios = () => {
               <thead className="table-dark">
                 <tr>
                   <th>Nombre</th>
-                  <th>Email</th>
+                  <th className="d-none d-md-table-cell">Email</th>
                   <th>Rol</th>
                   <th>Estado</th>
-                  <th>Último Acceso</th>
+                  <th className="d-none d-lg-table-cell">Último Acceso</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
@@ -239,14 +239,15 @@ const AdminUsuarios = () => {
                     <tr key={usr.id}>
                       <td>
                         <div className="fw-semibold">{usr.nombre_completo}</div>
+                        <small className="text-muted d-md-none">{usr.email}</small>
                         {usr.id === usuarioActual?.id && (
-                          <small className="text-primary">(Tú)</small>
+                          <small className="text-primary d-block">(Tú)</small>
                         )}
                       </td>
-                      <td className="text-muted">{usr.email}</td>
+                      <td className="text-muted d-none d-md-table-cell">{usr.email}</td>
                       <td>
                         <span className={`badge ${usr.rol_id === 1 ? 'bg-danger' : 'bg-info'}`}>
-                          {usr.rol || (usr.rol_id === 1 ? 'Administrador' : 'Vendedor')}
+                          {usr.rol_id === 1 ? 'Admin' : 'Vendedor'}
                         </span>
                       </td>
                       <td>
@@ -254,7 +255,7 @@ const AdminUsuarios = () => {
                           {usr.estado === 1 ? 'Activo' : 'Inactivo'}
                         </span>
                       </td>
-                      <td className="text-muted small">{formatearFecha(usr.ultimo_acceso)}</td>
+                      <td className="text-muted small d-none d-lg-table-cell">{formatearFecha(usr.ultimo_acceso)}</td>
                       <td>
                         <div className="d-flex align-items-center gap-1">
                           <button
