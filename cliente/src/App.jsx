@@ -32,30 +32,30 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 // COMPONENTES
 // =====================================================
 
-import BarraNavegacion from './componentes/BarraNavegacion';
-import RutaProtegidaPorRol from './componentes/RutaProtegidaPorRol';
+import BarraNavegacion from './components/BarraNavegacion';
+import RutaProtegidaPorRol from './components/RutaProtegidaPorRol';
 
 // =====================================================
 // PÁGINAS
 // =====================================================
 
-import Inicio from './paginas/Inicio';
-import Inventario from './paginas/Inventario';
-import Movimientos from './paginas/Movimientos';
-import PaginaClientes from './paginas/PaginaClientes';
-import PaginaVentas from './paginas/PaginaVentas';
-import HistorialVentas from './paginas/HistorialVentas';
-import PaginaProveedores from './paginas/PaginaProveedores';
-import PaginaAutores from './paginas/PaginaAutores';
-import PaginaCategorias from './paginas/PaginaCategorias';
-import Acceso from './paginas/Acceso';
-import AdminUsuarios from './paginas/AdminUsuarios';
+import Inicio from './pages/Inicio';
+import Inventario from './pages/Inventario';
+import Movimientos from './pages/Movimientos';
+import PaginaClientes from './pages/PaginaClientes';
+import PaginaVentas from './pages/PaginaVentas';
+import HistorialVentas from './pages/HistorialVentas';
+import PaginaProveedores from './pages/PaginaProveedores';
+import PaginaAutores from './pages/PaginaAutores';
+import PaginaCategorias from './pages/PaginaCategorias';
+import Acceso from './pages/Acceso';
+import AdminUsuarios from './pages/AdminUsuarios';
 
 // =====================================================
 // CONTEXTO
 // =====================================================
 
-import { AuthProvider, useAuth } from './contexto/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
 // =====================================================
 // COMPONENTES DE PROTECCIÓN Y LAYOUT

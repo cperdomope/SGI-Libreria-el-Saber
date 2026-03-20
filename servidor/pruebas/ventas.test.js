@@ -1,155 +1,73 @@
-/**
- * =====================================================
- * PRUEBAS AUTOMATIZADAS - VENTAS
- * =====================================================
- * Sistema de Gestión de Inventario - Librería
- * Proyecto SENA - Tecnólogo en ADSO
- *
- * @description Pruebas de integración para el módulo de
- * ventas. Valida creación, validación de stock y listado.
- *
- * PRUEBAS INCLUIDAS:
- * 1. Listar ventas sin autenticación → debe fallar
- * 2. Listar ventas con token válido → debe funcionar
- * 3. Crear venta con datos incompletos → debe fallar
- * 4. Crear venta sin cliente_id → debe fallar
- * 5. Crear venta sin items → debe fallar
- *
- * @version 1.0.0
- */
-
 const request = require('supertest');
 
-// Configuración de entorno para pruebas
 process.env.NODE_ENV = 'test';
-process.env.JWT_SECRET = process.env.JWT_SECRET || 'secret_para_pruebas_jest';
 
-// App Express para pruebas
-const express = require('express');
-const rutasAuth = require('../rutas/rutasAuth');
-const rutasVentas = require('../rutas/ventaRutas');
+const app = require('../app');
 
-const app = express();
-app.use(express.json());
-app.use('/api/auth', rutasAuth);
-app.use('/api/ventas', rutasVentas);
-
-// =====================================================
-// HELPER: Obtener token de autenticación
-// =====================================================
-
-/**
- * Realiza login y retorna el token JWT.
- * Se reutiliza en múltiples pruebas.
- */
-const obtenerToken = async () => {
-  const respuesta = await request(app)
-    .post('/api/auth/login')
-    .send({ email: 'admin@sena.edu.co', password: 'admin123' });
-
-  return respuesta.body.token;
-};
-
-// =====================================================
-// SUITE: VENTAS
-// =====================================================
+const EMAIL_ADMIN    = process.env.TEST_ADMIN_EMAIL    || 'ldarlys@sena.edu.co';
+const PASSWORD_ADMIN = process.env.TEST_ADMIN_PASSWORD || 'admin123';
 
 describe('Módulo de Ventas', () => {
 
   let tokenAdmin = null;
 
-  // Obtener token antes de las pruebas
   beforeAll(async () => {
     try {
-      tokenAdmin = await obtenerToken();
+      const res = await request(app)
+        .post('/api/auth/login')
+        .send({ email: EMAIL_ADMIN, password: PASSWORD_ADMIN });
+      tokenAdmin = res.body.token || null;
     } catch {
-      // Si no hay BD disponible, el token será null
-      // Las pruebas que lo requieran lo manejarán
+      // BD no disponible — las pruebas que lo requieran se omitirán
     }
   });
 
-  // ─────────────────────────────────────────────────
-  // PRUEBA 1: Listar ventas sin autenticación
-  // ─────────────────────────────────────────────────
   test('Debe rechazar listado de ventas sin token JWT', async () => {
-    const respuesta = await request(app)
-      .get('/api/ventas')
-      .expect('Content-Type', /json/);
-
-    expect(respuesta.status).toBe(401);
+    const res = await request(app).get('/api/ventas');
+    expect(res.status).toBe(401);
   });
 
-  // ─────────────────────────────────────────────────
-  // PRUEBA 2: Crear venta sin datos (sin token)
-  // ─────────────────────────────────────────────────
   test('Debe rechazar crear venta sin autenticación', async () => {
-    const respuesta = await request(app)
+    const res = await request(app)
       .post('/api/ventas')
-      .send({
-        cliente_id: 1,
-        total: 50000,
-        items: [{ libro_id: 1, cantidad: 1, precio_unitario: 50000 }]
-      });
-
-    expect(respuesta.status).toBe(401);
+      .send({ cliente_id: 1, total: 50000, items: [{ libro_id: 1, cantidad: 1, precio_unitario: 50000 }] });
+    expect(res.status).toBe(401);
   });
 
-  // ─────────────────────────────────────────────────
-  // PRUEBA 3: Crear venta sin cliente_id
-  // ─────────────────────────────────────────────────
   test('Debe rechazar venta sin cliente_id', async () => {
-    if (!tokenAdmin) return; // Saltar si no hay BD
-
-    const respuesta = await request(app)
-      .post('/api/ventas')
-      .set('Authorization', `Bearer ${tokenAdmin}`)
-      .send({
-        // Sin cliente_id
-        total: 50000,
-        items: [{ libro_id: 1, cantidad: 1, precio_unitario: 50000 }]
-      });
-
-    expect(respuesta.status).toBe(400);
-    expect(respuesta.body.exito).toBe(false);
-  });
-
-  // ─────────────────────────────────────────────────
-  // PRUEBA 4: Crear venta sin items
-  // ─────────────────────────────────────────────────
-  test('Debe rechazar venta sin items (carrito vacío)', async () => {
     if (!tokenAdmin) return;
 
-    const respuesta = await request(app)
+    const res = await request(app)
       .post('/api/ventas')
       .set('Authorization', `Bearer ${tokenAdmin}`)
-      .send({
-        cliente_id: 1,
-        total: 0,
-        items: []  // Items vacíos
-      });
+      .send({ total: 50000, items: [{ libro_id: 1, cantidad: 1, precio_unitario: 50000 }] });
 
-    expect(respuesta.status).toBe(400);
-    expect(respuesta.body.exito).toBe(false);
-    expect(respuesta.body.mensaje).toMatch(/datos incompletos/i);
+    expect(res.status).toBe(400);
+    expect(res.body.exito).toBe(false);
   });
 
-  // ─────────────────────────────────────────────────
-  // PRUEBA 5: Total manipulado (seguridad backend)
-  // ─────────────────────────────────────────────────
+  test('Debe rechazar venta con carrito vacío', async () => {
+    if (!tokenAdmin) return;
+
+    const res = await request(app)
+      .post('/api/ventas')
+      .set('Authorization', `Bearer ${tokenAdmin}`)
+      .send({ cliente_id: 1, total: 0, items: [] });
+
+    expect(res.status).toBe(400);
+    expect(res.body.exito).toBe(false);
+    expect(res.body.mensaje).toMatch(/datos incompletos/i);
+  });
+
   test('Debe rechazar venta con total manipulado desde el frontend', async () => {
     if (!tokenAdmin) return;
 
-    const respuesta = await request(app)
+    const res = await request(app)
       .post('/api/ventas')
       .set('Authorization', `Bearer ${tokenAdmin}`)
-      .send({
-        cliente_id: 1,
-        total: 1,  // Total manipulado (debería ser 50000)
-        items: [{ libro_id: 1, cantidad: 1, precio_unitario: 50000 }]
-      });
+      .send({ cliente_id: 1, total: 1, items: [{ libro_id: 1, cantidad: 1, precio_unitario: 50000 }] });
 
-    // El backend recalcula y rechaza si hay diferencia
-    expect(respuesta.status).toBe(400);
-    expect(respuesta.body.codigo).toBe('TOTAL_INVALIDO');
+    expect(res.status).toBe(400);
+    expect(res.body.codigo).toBe('TOTAL_INVALIDO');
   });
 });

@@ -1,172 +1,102 @@
-/**
- * =====================================================
- * MIDDLEWARE DE RATE LIMITING
- * =====================================================
- * Sistema de Gestión de Inventario - Librería
- * Proyecto SENA - Tecnólogo en ADSO
- *
- * @description Limita el número de peticiones por IP para prevenir:
- * - Ataques de fuerza bruta
- * - Spam de peticiones
- * - Abuso de recursos del servidor
- * - Scraping excesivo
- *
- * INSTALACIÓN REQUERIDA:
- * npm install express-rate-limit
- *
- * @requires express-rate-limit
- * @author Equipo de Desarrollo SGI
- * @version 1.0.0
- */
-
-// Intentar cargar express-rate-limit
-let rateLimit;
-try {
-  rateLimit = require('express-rate-limit');
-} catch (error) {
-  // Si no está instalado, exportar middlewares vacíos
-  console.warn('[Rate Limit] express-rate-limit no está instalado. Rate limiting desactivado.');
-  console.warn('[Rate Limit] Instala con: npm install express-rate-limit');
-
-  // Exportar funciones dummy que no hacen nada
-  module.exports = {
-    limiterGeneral: (req, res, next) => next(),
-    limiterAuth: (req, res, next) => next(),
-    limiterAPI: (req, res, next) => next(),
-    limiterEstricto: (req, res, next) => next()
-  };
-  return; // Detener ejecución del resto del archivo
-}
-
 // =====================================================
-// CONFIGURACIÓN DE RATE LIMITERS
+// MIDDLEWARE: RATE LIMITING (LÍMITE DE PETICIONES)
+// =====================================================
+// Rate limiting = control de la tasa de peticiones.
+// Limita cuántas veces una IP puede hacer peticiones
+// en un período de tiempo determinado.
+//
+// ¿Por qué es necesario?
+// Sin esta protección, un atacante podría:
+//   - Ataque de fuerza bruta al login: probar millones de contraseñas
+//     hasta encontrar la correcta (un script puede hacer miles/segundo)
+//   - Ataque DoS (Denegación de Servicio): saturar el servidor
+//     con peticiones para que deje de responder a usuarios reales
+//
+// ¿Cómo funciona?
+// Se lleva un contador por dirección IP.
+// Si esa IP supera el máximo de peticiones en la ventana de tiempo,
+// las siguientes peticiones reciben un error 429 (Too Many Requests)
+// en lugar de procesarse.
+//
+// Este archivo define DOS limitadores con umbrales diferentes:
+//   limiterAuth: muy estricto (10 intentos/15min) → para el login
+//   limiterAPI:  permisivo   (500 peticiones/15min) → para todo lo demás
+//
+// 🔹 En la sustentación puedo decir:
+// "Implementamos dos niveles de rate limiting con express-rate-limit.
+//  El limitador de autenticación es más estricto porque el login
+//  es el punto de entrada a ataques de fuerza bruta:
+//  10 intentos fallidos en 15 minutos bloquea la IP automáticamente.
+//  El limitador general permite operaciones normales del sistema
+//  pero evita que un cliente defectuoso o malicioso sature el servidor."
 // =====================================================
 
-/**
- * Rate Limiter General - Para rutas públicas.
- *
- * Configuración permisiva para endpoints de consulta general.
- * Permite gran volumen de peticiones.
- */
-const limiterGeneral = rateLimit({
-  windowMs: 15 * 60 * 1000, // Ventana de 15 minutos
-  max: 1000, // Máximo 1000 peticiones por ventana
-  message: {
-    exito: false,
-    mensaje: 'Demasiadas peticiones desde esta IP. Intente nuevamente en 15 minutos.',
-    codigo: 'RATE_LIMIT_EXCEEDED'
-  },
-  standardHeaders: true, // Retornar info de rate limit en headers RateLimit-*
-  legacyHeaders: false, // Desactivar headers X-RateLimit-* (obsoletos)
-  skip: (req) => {
-    // Opcional: Saltar rate limiting en desarrollo
-    return process.env.NODE_ENV === 'development';
-  }
-});
+const rateLimit = require('express-rate-limit');
 
-/**
- * Rate Limiter para Autenticación - Endpoints sensibles.
- *
- * Configuración estricta para login/registro.
- * Previene ataques de fuerza bruta.
- */
+// ─────────────────────────────────────────────────────────
+// LIMITADOR 1: AUTENTICACIÓN (LOGIN)
+// ─────────────────────────────────────────────────────────
+// Configuración más estricta porque el endpoint de login
+// es el objetivo número 1 de ataques de fuerza bruta.
+//
+// Parámetros:
+//   windowMs: 15 minutos (en milisegundos = 15 × 60 × 1000)
+//   max: 10 intentos por IP en esa ventana
+//   skipSuccessfulRequests: true → los logins EXITOSOS no cuentan.
+//     Solo se cuentan los fallidos. Así un usuario legítimo que
+//     hace login correcto no gasta su cuota.
 const limiterAuth = rateLimit({
-  windowMs: 15 * 60 * 1000, // Ventana de 15 minutos
-  max: 10, // Máximo 10 intentos por ventana
+  windowMs: 15 * 60 * 1000,  // Ventana de 15 minutos
+  max: 10,                    // Máximo 10 intentos fallidos por IP
+
+  // Mensaje de error que recibe el cliente cuando supera el límite.
+  // Usamos el mismo formato JSON que el resto de la API.
   message: {
     exito: false,
-    mensaje: 'Demasiados intentos de autenticación. Por seguridad, intente nuevamente en 15 minutos.',
+    mensaje: 'Demasiados intentos de autenticación. Intente nuevamente en 15 minutos.',
     codigo: 'AUTH_RATE_LIMIT_EXCEEDED'
   },
+
+  // standardHeaders: true → envía los headers estándar RFC 6585:
+  //   RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset
+  //   El cliente puede leer cuántos intentos le quedan.
   standardHeaders: true,
+
+  // legacyHeaders: false → no enviar los headers deprecados
+  //   X-RateLimit-Limit, X-RateLimit-Remaining (formato antiguo)
   legacyHeaders: false,
-  skipSuccessfulRequests: true, // No contar requests exitosos (solo fallidos)
-  skip: (req) => process.env.NODE_ENV === 'development'
+
+  // Solo contar peticiones FALLIDAS (status >= 400).
+  // Un usuario que inicia sesión correctamente no penaliza su cuota.
+  skipSuccessfulRequests: true
 });
 
-/**
- * Rate Limiter para API General - Endpoints protegidos.
- *
- * Configuración moderada para usuarios autenticados.
- * Permite uso normal pero previene abuso.
- */
+// ─────────────────────────────────────────────────────────
+// LIMITADOR 2: API GENERAL (RUTAS PRIVADAS)
+// ─────────────────────────────────────────────────────────
+// Configuración permisiva para las rutas normales del sistema.
+// 500 peticiones en 15 minutos es suficiente para cualquier
+// uso normal, pero detiene scripts o clientes mal programados.
+//
+// Un vendedor trabajando activamente rara vez supera 100 peticiones
+// por hora, así que 500/15min es muy holgado para uso legítimo.
 const limiterAPI = rateLimit({
-  windowMs: 15 * 60 * 1000, // Ventana de 15 minutos
-  max: 500, // Máximo 500 peticiones por ventana
+  windowMs: 15 * 60 * 1000,  // Ventana de 15 minutos
+  max: 500,                   // 500 peticiones por IP (uso normal del sistema)
+
   message: {
     exito: false,
-    mensaje: 'Ha excedido el límite de peticiones permitidas. Intente nuevamente en 15 minutos.',
+    mensaje: 'Ha excedido el límite de peticiones. Intente nuevamente en 15 minutos.',
     codigo: 'API_RATE_LIMIT_EXCEEDED'
   },
+
   standardHeaders: true,
-  legacyHeaders: false,
-  skip: (req) => process.env.NODE_ENV === 'development'
+  legacyHeaders: false
+  // Aquí NO usamos skipSuccessfulRequests: contamos todas las peticiones
+  // para proteger contra cualquier tipo de abuso, no solo intentos fallidos.
 });
 
-/**
- * Rate Limiter Estricto - Operaciones críticas.
- *
- * Configuración muy restrictiva para operaciones sensibles:
- * - Eliminación de registros
- * - Cambios masivos
- * - Exportación de datos
- */
-const limiterEstricto = rateLimit({
-  windowMs: 60 * 60 * 1000, // Ventana de 1 hora
-  max: 20, // Máximo 20 peticiones por hora
-  message: {
-    exito: false,
-    mensaje: 'Ha excedido el límite de operaciones sensibles. Intente nuevamente en 1 hora.',
-    codigo: 'STRICT_RATE_LIMIT_EXCEEDED'
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: (req) => process.env.NODE_ENV === 'development'
-});
-
-// =====================================================
-// FUNCIÓN HELPER PARA RATE LIMITING PERSONALIZADO
-// =====================================================
-
-/**
- * Crea un rate limiter personalizado con configuración específica.
- *
- * @param {Object} opciones - Opciones de configuración
- * @param {number} opciones.windowMs - Ventana de tiempo en ms
- * @param {number} opciones.max - Máximo de peticiones
- * @param {string} opciones.mensaje - Mensaje de error personalizado
- * @returns {Function} Middleware de rate limiting
- *
- * @example
- * const limiterCustom = crearLimiter({
- *   windowMs: 60000,
- *   max: 5,
- *   mensaje: 'Solo 5 peticiones por minuto permitidas'
- * });
- */
-const crearLimiter = (opciones) => {
-  return rateLimit({
-    windowMs: opciones.windowMs,
-    max: opciones.max,
-    message: {
-      exito: false,
-      mensaje: opciones.mensaje,
-      codigo: 'CUSTOM_RATE_LIMIT_EXCEEDED'
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-    skip: (req) => process.env.NODE_ENV === 'development'
-  });
-};
-
-// =====================================================
-// EXPORTACIÓN
-// =====================================================
-
-module.exports = {
-  limiterGeneral,
-  limiterAuth,
-  limiterAPI,
-  limiterEstricto,
-  crearLimiter
-};
+// Exportamos ambos para usarlos en los lugares apropiados:
+//   limiterAuth → solo en POST /api/auth/login (authRutas.js)
+//   limiterAPI  → en app.js para todas las rutas /api/*
+module.exports = { limiterAuth, limiterAPI };

@@ -1,78 +1,70 @@
-/**
- * =====================================================
- * MIDDLEWARE DE VERIFICACIÓN DE ROLES (RBAC)
- * =====================================================
- * Sistema de Gestión de Inventario - Librería
- * Proyecto SENA - Tecnólogo en ADSO
- *
- * @description Este middleware implementa Control de Acceso Basado en Roles (RBAC).
- * Verifica que el usuario autenticado tenga los permisos necesarios para
- * acceder a recursos protegidos según su rol asignado.
- *
- * @requires verificarToken - Debe ejecutarse ANTES de este middleware
- *
- * @author Equipo de Desarrollo SGI
- * @version 2.0.0
- */
-
 // =====================================================
-// DEFINICIÓN DE ROLES DEL SISTEMA
+// MIDDLEWARE: VERIFICACIÓN DE ROL (RBAC)
+// =====================================================
+// RBAC = Role-Based Access Control = Control de Acceso Basado en Roles.
+// Es un modelo de seguridad donde los permisos no se asignan a personas,
+// sino a ROLES, y las personas tienen roles asignados.
+//
+// En este sistema hay dos roles:
+//   Administrador (rol_id = 1): acceso total
+//   Vendedor      (rol_id = 2): acceso limitado (ventas y consultas)
+//
+// Este archivo se ejecuta DESPUÉS de verificarToken.
+// verificarToken ya confirmó que el usuario está autenticado
+// y llenó req.usuario con sus datos (incluyendo req.usuario.rol).
+// Este middleware usa ese rol para decidir si tiene permisos.
+//
+// Ejemplo del flujo completo:
+//   verificarToken → soloAdministrador → controlador.eliminarUsuario
+//   (¿quién eres?)   (¿tienes permiso?) (haz la operación)
+//
+// PATRÓN "FACTORY FUNCTION":
+// verificarRol() no es el middleware directamente.
+// Es una función que DEVUELVE el middleware ya configurado.
+// Esto permite crear variantes (soloAdmin, adminOVendedor)
+// sin repetir código.
+//
+// 🔹 En la sustentación puedo decir:
+// "Implementamos RBAC con una factory function: verificarRol([roles])
+//  recibe un arreglo de IDs de roles permitidos y devuelve el middleware
+//  ya configurado. Los presets soloAdministrador y administradorOVendedor
+//  son instancias predefinidas de esa función para los dos casos de uso
+//  más comunes del sistema."
 // =====================================================
 
-/**
- * Constantes que mapean los roles del sistema con sus IDs en la base de datos.
- * Estos valores deben coincidir con la tabla mdc_roles.
- *
- * @constant {Object} ROLES
- * @property {number} ADMINISTRADOR - ID 1: Acceso total al sistema
- * @property {number} VENDEDOR - ID 2: Acceso limitado (solo ventas y consultas)
- */
+// ─────────────────────────────────────────────────────────
+// CONSTANTES DE ROLES
+// ─────────────────────────────────────────────────────────
+// Los IDs de roles deben coincidir con los registros
+// de la tabla mdc_roles en la base de datos.
+// Usar constantes en lugar de números "mágicos" hace el código
+// más legible: soloAdministrador es más claro que verificarRol([1]).
 const ROLES = {
-  ADMINISTRADOR: 1,
-  VENDEDOR: 2
+  ADMINISTRADOR: 1,  // Acceso total: inventario, usuarios, ventas, reportes
+  VENDEDOR: 2        // Acceso parcial: crear ventas, consultar catálogo
 };
 
-// =====================================================
-// MIDDLEWARE PRINCIPAL
-// =====================================================
-
-/**
- * Crea un middleware que verifica si el usuario tiene uno de los roles permitidos.
- * Este es un patrón de "factory function" que permite configurar los roles dinámicamente.
- *
- * @function verificarRol
- * @param {number[]} rolesPermitidos - Array con los IDs de roles que pueden acceder
- * @returns {Function} Middleware de Express configurado
- *
- * @example
- * // Restringir a solo administradores
- * router.delete('/usuarios/:id',
- *   verificarToken,
- *   verificarRol([ROLES.ADMINISTRADOR]),
- *   controlador.eliminar
- * );
- *
- * @example
- * // Permitir a administradores y vendedores
- * router.get('/ventas',
- *   verificarToken,
- *   verificarRol([ROLES.ADMINISTRADOR, ROLES.VENDEDOR]),
- *   controlador.listar
- * );
- */
+// ─────────────────────────────────────────────────────────
+// FACTORY FUNCTION: verificarRol
+// ─────────────────────────────────────────────────────────
+// Recibe un arreglo de IDs de roles que pueden pasar el filtro.
+// Devuelve una función middleware lista para usar en rutas.
+//
+// Ejemplo de uso directo (sin presets):
+//   router.delete('/algo', verificarToken, verificarRol([ROLES.ADMINISTRADOR]), ctrl.eliminar);
+//
+// El parámetro rolesPermitidos se "recuerda" en el closure
+// gracias a la función interna que se devuelve.
 const verificarRol = (rolesPermitidos) => {
-  /**
-   * Middleware interno que ejecuta la verificación de roles.
-   *
-   * @param {Object} req - Objeto de solicitud Express (debe contener req.usuario)
-   * @param {Object} res - Objeto de respuesta Express
-   * @param {Function} next - Función para continuar la cadena
-   */
+
+  // Esta es la función que Express ejecutará como middleware
   return (req, res, next) => {
+
     // ─────────────────────────────────────────────────
-    // VALIDACIÓN 1: Verificar que el usuario esté autenticado
-    // req.usuario es establecido por verificarToken, si no existe
-    // significa que el middleware se usó incorrectamente
+    // VALIDACIÓN 1: ¿verificarToken corrió antes?
+    // req.usuario lo establece verificarToken. Si no existe,
+    // alguien usó este middleware sin verificarToken primero,
+    // lo cual es un error de programación (no del usuario).
     // ─────────────────────────────────────────────────
     if (!req.usuario) {
       return res.status(401).json({
@@ -83,16 +75,17 @@ const verificarRol = (rolesPermitidos) => {
     }
 
     // ─────────────────────────────────────────────────
-    // VALIDACIÓN 2: Verificar que el rol esté en la lista permitida
-    // El rol viene del payload del token JWT (establecido en login)
+    // VALIDACIÓN 2: ¿El rol del usuario está en la lista permitida?
+    // req.usuario.rol viene del payload del token JWT,
+    // que se llenó en el login con el rol real de la BD.
+    // includes() busca si el rol del usuario está en el arreglo.
     // ─────────────────────────────────────────────────
     const rolUsuario = req.usuario.rol;
 
     if (!rolesPermitidos.includes(rolUsuario)) {
-      // ─────────────────────────────────────────────────
-      // LOG DE AUDITORÍA: Registrar intentos de acceso no autorizado
-      // Solo en desarrollo para no saturar logs de producción
-      // ─────────────────────────────────────────────────
+      // En desarrollo, registramos en consola quién intentó qué.
+      // En producción omitimos esto para no saturar los logs.
+      // Esto sirve para auditar accesos indebidos durante el desarrollo.
       if (process.env.NODE_ENV === 'development') {
         console.warn(
           `[RBAC] Acceso denegado - Usuario: ${req.usuario.id} ` +
@@ -100,6 +93,8 @@ const verificarRol = (rolesPermitidos) => {
         );
       }
 
+      // 403 = "Prohibido" (sí está autenticado, pero no tiene permiso)
+      // Diferente de 401 que significa "no autenticado".
       return res.status(403).json({
         error: 'Acceso denegado',
         mensaje: 'No tiene permisos suficientes para realizar esta acción',
@@ -108,43 +103,39 @@ const verificarRol = (rolesPermitidos) => {
     }
 
     // ─────────────────────────────────────────────────
-    // AUTORIZADO: El usuario tiene el rol adecuado
-    // Continuar con el siguiente middleware/controlador
+    // AUTORIZADO: el usuario tiene el rol adecuado.
+    // Pasamos al siguiente middleware o controlador.
     // ─────────────────────────────────────────────────
     next();
   };
 };
 
-// =====================================================
-// MIDDLEWARES PRE-CONFIGURADOS
-// =====================================================
-// Estos atajos simplifican el uso común en las rutas
+// ─────────────────────────────────────────────────────────
+// PRESETS (MIDDLEWARES LISTOS PARA USAR)
+// ─────────────────────────────────────────────────────────
+// En lugar de escribir verificarRol([ROLES.ADMINISTRADOR]) en cada ruta,
+// creamos atajos con nombres descriptivos.
+// Son el resultado de invocar verificarRol() de antemano.
 
-/**
- * Middleware que solo permite acceso a Administradores.
- * Útil para operaciones críticas como eliminar usuarios o configuración.
- *
- * @example
- * router.delete('/usuarios/:id', verificarToken, soloAdministrador, eliminar);
- */
+// Solo permite paso a usuarios con rol Administrador (rol_id = 1).
+// Se usa en operaciones críticas: CRUD de usuarios, eliminar registros,
+// anular ventas, configurar el sistema.
 const soloAdministrador = verificarRol([ROLES.ADMINISTRADOR]);
 
-/**
- * Middleware que permite acceso a Administradores y Vendedores.
- * Útil para operaciones generales del sistema.
- *
- * @example
- * router.get('/libros', verificarToken, administradorOVendedor, listar);
- */
+// Permite paso a Administradores Y Vendedores (rol_id 1 o 2).
+// Se usa en operaciones del día a día: ver inventario, crear ventas,
+// consultar clientes, ver historial.
 const administradorOVendedor = verificarRol([ROLES.ADMINISTRADOR, ROLES.VENDEDOR]);
 
-// =====================================================
+// ─────────────────────────────────────────────────────────
 // EXPORTACIONES
-// =====================================================
-
+// ─────────────────────────────────────────────────────────
+// Exportamos todo para que las rutas puedan importar
+// exactamente lo que necesiten con destructuring:
+//   const { soloAdministrador } = require('../middlewares/verificarRol');
 module.exports = {
-  verificarRol,           // Factory function para roles personalizados
+  verificarRol,           // Factory function para roles personalizados en el futuro
   soloAdministrador,      // Preset: solo admins
   administradorOVendedor, // Preset: admins y vendedores
-  ROLES                   // Constantes de roles
+  ROLES                   // Constantes de roles (por si algún controlador las necesita)
 };

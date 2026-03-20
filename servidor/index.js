@@ -1,76 +1,105 @@
-const express = require('express');
-const cors    = require('cors');
-const path    = require('path');
-require('dotenv').config();
+// =====================================================
+// PUNTO DE ENTRADA DEL SERVIDOR (index.js)
+// =====================================================
+// Este archivo es el que Node.js ejecuta al correr:
+//   node index.js   (o npm start)
+//
+// Su responsabilidad es única y clara:
+//   1. Tomar la aplicación Express ya configurada (app.js)
+//   2. Ponerla a escuchar en un puerto
+//   3. Manejar el apagado ordenado del servidor
+//
+// ¿Por qué separar app.js de index.js?
+// app.js configura la lógica; index.js arranca el proceso.
+// Los tests pueden importar app.js sin abrir un puerto real,
+// lo que evita conflictos de puertos y hace los tests más rápidos.
+//
+// GRACEFUL SHUTDOWN (apagado ordenado):
+// Cuando el sistema operativo o PM2 envían una señal para
+// detener el servidor (SIGTERM, SIGINT / Ctrl+C), no debemos
+// cortarlo abruptamente. Hay que:
+//   1. Dejar de aceptar conexiones nuevas
+//   2. Esperar a que las peticiones en curso terminen
+//   3. Cerrar el pool de la BD para liberar conexiones MySQL
+//   4. Salir del proceso limpiamente
+// Sin esto, un reinicio rápido puede causar "Too many connections"
+// en MySQL porque las conexiones anteriores no se cerraron.
+//
+// 🔹 En la sustentación puedo decir:
+// "Implementamos graceful shutdown para que el servidor se apague
+//  ordenadamente ante señales del SO o de PM2. Esto es importante
+//  en producción: evita pérdida de datos en peticiones en curso
+//  y evita el error 'Too many connections' al reiniciar rápido."
+// =====================================================
 
-// Base de Datos
-require('./configuracion/db');
+const app = require('./app');         // Aplicación Express configurada
+const db  = require('./config/db');   // Pool de conexiones (para cerrarlo al apagar)
 
-// Importar Rutas
-const rutasLibros = require('./rutas/rutasLibros');
-const rutasMovimientos = require('./rutas/rutasMovimientos');
-const rutasDashboard = require('./rutas/rutasDashboard');
-const rutasAuth = require('./rutas/rutasAuth');
-const rutasClientes = require('./rutas/clienteRutas');
-const rutasVentas = require('./rutas/ventaRutas');
-const rutasProveedores = require('./rutas/proveedorRutas');
-const rutasAutores = require('./rutas/autorRutas');
-const rutasCategorias = require('./rutas/categoriaRutas');
-const rutasUsuarios = require('./rutas/usuarioRutas');
-const { errorHandler, notFoundHandler } = require('./middlewares/errorHandler');
+// Leer el puerto del .env o usar 3000 por defecto
+const PORT = process.env.PORT || 3000;
 
-const app = express();
+// ─────────────────────────────────────────────────────────
+// ARRANCAR EL SERVIDOR
+// ─────────────────────────────────────────────────────────
+// app.listen() inicia el servidor HTTP en el puerto indicado.
+// Guardamos la referencia en 'server' para poder cerrarlo
+// ordenadamente en el graceful shutdown.
+const server = app.listen(PORT, () => {
+  console.log(`[SGI] Servidor en puerto ${PORT} | ENV: ${process.env.NODE_ENV || 'development'}`);
+});
 
-// --- CONFIGURACIÓN DE CORS SEGURA ---
-// Solo permite requests desde el origen especificado en .env
-const corsOptions = {
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
-    credentials: true, // Permite envío de cookies y headers de autenticación
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    optionsSuccessStatus: 200
+// ─────────────────────────────────────────────────────────
+// GRACEFUL SHUTDOWN
+// ─────────────────────────────────────────────────────────
+// Función que maneja el apagado ordenado.
+// Se ejecuta cuando llega una señal del sistema operativo.
+const cerrar = (señal) => {
+  console.log(`[SGI] ${señal} recibido. Cerrando servidor...`);
+
+  // server.close() deja de aceptar conexiones nuevas
+  // y espera a que las peticiones activas terminen.
+  // La callback se ejecuta cuando ya no hay peticiones pendientes.
+  server.close(async () => {
+    try {
+      // Cerrar el pool de MySQL libera todas las conexiones.
+      // Si no lo cerramos, MySQL puede llegar al límite de conexiones
+      // ("max_connections") al reiniciar el servidor rápidamente.
+      await db.end();
+      console.log('[DB]  Pool de conexiones cerrado correctamente.');
+    } catch (err) {
+      console.error('[DB]  Error al cerrar el pool:', err.message);
+    }
+    // Salir con código 0 = éxito (apagado normal)
+    process.exit(0);
+  });
+
+  // ─────────────────────────────────────────────────
+  // FORZAR CIERRE DESPUÉS DE 10 SEGUNDOS
+  // ─────────────────────────────────────────────────
+  // Si hay peticiones que no terminan (conexiones colgadas),
+  // server.close() esperaría indefinidamente.
+  // Este timeout fuerza el cierre después de 10 segundos
+  // para que PM2 o el SO no queden esperando.
+  // process.exit(1) = salida con error (cierre forzado)
+  //
+  // .unref() evita que este timeout mantenga vivo el proceso
+  // si server.close() termina antes del límite.
+  setTimeout(() => {
+    console.error('[SGI] Cierre forzado por timeout.');
+    process.exit(1);
+  }, 10_000).unref();
 };
 
-app.use(cors(corsOptions));
+// ─────────────────────────────────────────────────────────
+// SEÑALES DEL SISTEMA OPERATIVO
+// ─────────────────────────────────────────────────────────
+// SIGTERM: señal de terminación "educada".
+//   - PM2 la envía cuando se hace: pm2 stop / pm2 restart
+//   - Docker la envía cuando se detiene un contenedor
+//   - Linux systemd la envía al detener un servicio
+process.on('SIGTERM', () => cerrar('SIGTERM'));
 
-// Archivos estáticos ANTES del middleware de Content-Type
-// para que las imágenes se sirvan con su MIME type correcto
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-app.use(express.json());
-
-// Middleware para forzar UTF-8 en respuestas de la API
-app.use((req, res, next) => {
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    next();
-});
-// ---------------------------------------------------
-
-// Usar Rutas (Ahora sí funcionarán porque ya se configuró JSON)
-app.use('/api/ventas', rutasVentas);
-app.use('/api/libros', rutasLibros);
-app.use('/api/movimientos', rutasMovimientos);
-app.use('/api/dashboard', rutasDashboard);
-app.use('/api/auth', rutasAuth);
-app.use('/api/clientes', rutasClientes);
-app.use('/api/proveedores', rutasProveedores);
-app.use('/api/autores', rutasAutores);
-app.use('/api/categorias', rutasCategorias);
-app.use('/api/usuarios', rutasUsuarios);
-
-app.get('/', (req, res) => {
-    res.send('API del Sistema de Inventario Funcionando 🚀');
-});
-
-// ── Manejo de rutas no encontradas (404) ──
-// Debe ir DESPUÉS de todas las rutas definidas
-app.use(notFoundHandler);
-
-// ── Manejo global de errores ──
-// Debe ser el ÚLTIMO middleware (4 parámetros: err, req, res, next)
-app.use(errorHandler);
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`✅ Servidor corriendo en http://localhost:${PORT}`);
-});
+// SIGINT: señal de interrupción del usuario.
+//   - Se genera al presionar Ctrl+C en la terminal
+//   - Es la forma de detener el servidor en desarrollo
+process.on('SIGINT',  () => cerrar('SIGINT'));

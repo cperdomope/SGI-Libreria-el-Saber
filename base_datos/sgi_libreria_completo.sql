@@ -212,6 +212,36 @@ CREATE TABLE mdc_detalle_ventas (
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- =====================================================
+-- SECCIÓN 5.5: ÍNDICES DE RENDIMIENTO
+-- =====================================================
+-- Se crean DESPUÉS de las tablas para claridad.
+-- InnoDB ya indexa PKs y FK automáticamente.
+-- Estos índices cubren los patrones de consulta más frecuentes.
+
+-- mdc_ventas: filtros de fecha (dashboard, historial) y estado
+CREATE INDEX idx_ventas_fecha    ON mdc_ventas (fecha_venta);
+CREATE INDEX idx_ventas_cliente  ON mdc_ventas (cliente_id);
+CREATE INDEX idx_ventas_estado   ON mdc_ventas (estado);
+
+-- mdc_detalle_ventas: JOINs desde ventas y desde libros (top-productos)
+CREATE INDEX idx_detalle_venta   ON mdc_detalle_ventas (venta_id);
+CREATE INDEX idx_detalle_libro   ON mdc_detalle_ventas (libro_id);
+
+-- mdc_libros: alerta de stock bajo (stock_actual < stock_minimo)
+CREATE INDEX idx_libros_stock    ON mdc_libros (stock_actual, stock_minimo);
+-- búsqueda por título (prefijo) desde Inventario
+CREATE INDEX idx_libros_titulo   ON mdc_libros (titulo);
+
+-- mdc_movimientos: consultas por libro y por fecha en Kardex
+CREATE INDEX idx_mov_libro       ON mdc_movimientos (libro_id);
+CREATE INDEX idx_mov_fecha       ON mdc_movimientos (fecha_movimiento);
+
+-- mdc_clientes: búsqueda LIKE por nombre desde HistorialVentas
+-- Un índice normal no sirve para LIKE '%texto%', pero sí para 'texto%'
+-- Se incluye de todas formas para igualdad y ORDER BY
+CREATE INDEX idx_clientes_nombre ON mdc_clientes (nombre_completo);
+
+-- =====================================================
 -- SECCIÓN 6: DATOS SEMILLA (SEEDERS)
 -- =====================================================
 
