@@ -278,7 +278,7 @@ const historias = [
     id: 'HU-29',
     titulo: 'Gestionar proveedores',
     como: 'Administrador',
-    quiero: 'crear, editar y activar/desactivar proveedores con sus datos (empresa, NIT, contacto, email, telefono, direccion)',
+    quiero: 'crear, editar y eliminar proveedores con sus datos (empresa, NIT, contacto, email, telefono, direccion)',
     para: 'mantener actualizada la informacion de quienes nos venden libros',
     prioridad: 'Alta',
     modulo: 'Proveedores'

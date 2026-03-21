@@ -28,7 +28,7 @@ const DocumentacionManualUsuario = () => {
             <li className="mb-2">Abre el navegador (Chrome, Firefox, Edge) y entra a la direccion del sistema.</li>
             <li className="mb-2">Veras la pagina de login con dos campos: <strong>Correo electronico</strong> y <strong>Contrasena</strong>.</li>
             <li className="mb-2">Escribe tu correo y tu contrasena.</li>
-            <li className="mb-2">Haz clic en el boton <strong>"Iniciar Sesion"</strong>.</li>
+            <li className="mb-2">Haz clic en el boton <strong>"INGRESAR AL SISTEMA"</strong>.</li>
             <li className="mb-2">Si los datos son correctos, entraras al sistema.</li>
             <li className="mb-0">Si te equivocas 3 veces seguidas, tu cuenta se bloqueara por seguridad. En ese caso, pide al Administrador que la desbloquee.</li>
           </ol>
@@ -153,7 +153,7 @@ const DocumentacionManualUsuario = () => {
             <li className="mb-2"><strong>Busca al cliente:</strong> Escribe el nombre del cliente en el buscador. Si no existe, puedes crearlo desde la seccion de Clientes.</li>
             <li className="mb-2"><strong>Agrega libros al carrito:</strong> Busca el libro, elige la cantidad y haz clic en "Agregar". Puedes agregar varios libros.</li>
             <li className="mb-2"><strong>Revisa el carrito:</strong> Puedes cambiar las cantidades o eliminar productos del carrito.</li>
-            <li className="mb-2"><strong>Aplica descuento (opcional):</strong> Puedes aplicar un descuento en porcentaje o en pesos.</li>
+            <li className="mb-2"><strong>Aplica descuento (opcional):</strong> Puedes aplicar un descuento en porcentaje (0% a 100%) y el sistema calcula automaticamente el monto.</li>
             <li className="mb-2"><strong>Elige el metodo de pago:</strong> Efectivo, Tarjeta, Transferencia o Mixto.</li>
             <li className="mb-0"><strong>Confirma la venta:</strong> Haz clic en "Confirmar venta". El stock se descuenta automaticamente.</li>
           </ol>
@@ -212,7 +212,7 @@ const DocumentacionManualUsuario = () => {
             <li className="mb-2">Veras la lista de proveedores con su empresa, NIT, contacto, etc.</li>
             <li className="mb-2"><strong>Crear proveedor:</strong> Haz clic en "Agregar proveedor" y llena los datos (empresa, NIT, contacto, email, telefono, direccion).</li>
             <li className="mb-2"><strong>Editar:</strong> Haz clic en el boton de editar para modificar los datos.</li>
-            <li className="mb-0"><strong>Activar/Desactivar:</strong> En vez de eliminar, puedes desactivar un proveedor. Un proveedor inactivo no aparece en los formularios de movimientos.</li>
+            <li className="mb-0"><strong>Eliminar:</strong> Haz clic en el boton de eliminar junto al proveedor. Solo se puede eliminar si no tiene movimientos de inventario asociados.</li>
           </ol>
         </div>
       </div>

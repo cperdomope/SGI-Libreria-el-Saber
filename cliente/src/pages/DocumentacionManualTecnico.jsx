@@ -152,6 +152,10 @@ const DocumentacionManualTecnico = () => {
 |
 |-- cliente/                    (Frontend - React)
 |   |-- src/
+|   |   |-- main.jsx            (Punto de entrada de React)
+|   |   |-- index.css            (Estilos base de la aplicacion)
+|   |   |-- App.jsx              (Componente raiz con las rutas)
+|   |   |
 |   |   |-- pages/              (Paginas de la aplicacion)
 |   |   |   |-- Acceso.jsx            Login
 |   |   |   |-- Inicio.jsx            Dashboard
@@ -164,11 +168,17 @@ const DocumentacionManualTecnico = () => {
 |   |   |   |-- PaginaProveedores.jsx Proveedores
 |   |   |   |-- PaginaAutores.jsx     Autores
 |   |   |   |-- PaginaCategorias.jsx  Categorias
+|   |   |   |-- DocumentacionHistorias.jsx      Historias de usuario
+|   |   |   |-- DocumentacionCriterios.jsx      Criterios de aceptacion
+|   |   |   |-- DocumentacionManualTecnico.jsx  Manual tecnico
+|   |   |   |-- DocumentacionManualUsuario.jsx  Manual de usuario
 |   |   |
 |   |   |-- components/         (Componentes reutilizables)
 |   |   |   |-- BarraNavegacion.jsx
 |   |   |   |-- ModalCambiarPassword.jsx
+|   |   |   |-- RutaProtegida.jsx
 |   |   |   |-- RutaProtegidaPorRol.jsx
+|   |   |   |-- LayoutPrincipal.jsx
 |   |   |
 |   |   |-- context/AuthContext.jsx   (Manejo de sesion y permisos)
 |   |   |-- services/api.js           (Conexion con el servidor)
@@ -180,10 +190,13 @@ const DocumentacionManualTecnico = () => {
 |   |-- routes/                 (Rutas de la API)
 |   |-- middlewares/            (Seguridad: JWT, roles, etc.)
 |   |-- config/db.js            (Conexion a MySQL)
+|   |-- utils/paginacion.js     (Utilidad para paginar resultados)
 |   |-- pruebas/                (Tests automatizados)
+|   |-- scripts/                (Scripts auxiliares de mantenimiento)
 |   |-- uploads/portadas/       (Imagenes de libros)
 |   |-- app.js                  (Configuracion del servidor)
 |   |-- index.js                (Archivo que arranca todo)
+|   |-- pm2.config.js           (Configuracion de PM2 para produccion)
 |
 |-- base_datos/
     |-- sgi_libreria_completo.sql   (Script para crear la BD)`}
@@ -275,8 +288,8 @@ mdc_proveedores --> mdc_movimientos`}
                 <tr><td><span className="badge bg-success">POST</span></td><td>/api/libros</td><td>Crear un libro</td><td>Admin</td></tr>
                 <tr><td><span className="badge bg-warning text-dark">PUT</span></td><td>/api/libros/:id</td><td>Editar un libro</td><td>Admin</td></tr>
                 <tr><td><span className="badge bg-danger">DELETE</span></td><td>/api/libros/:id</td><td>Eliminar un libro</td><td>Admin</td></tr>
-                <tr><td><span className="badge bg-primary">GET</span></td><td>/api/movimientos</td><td>Ver movimientos</td><td>Autenticado</td></tr>
-                <tr><td><span className="badge bg-success">POST</span></td><td>/api/movimientos</td><td>Registrar movimiento</td><td>Autenticado</td></tr>
+                <tr><td><span className="badge bg-primary">GET</span></td><td>/api/movimientos</td><td>Ver movimientos</td><td>Admin</td></tr>
+                <tr><td><span className="badge bg-success">POST</span></td><td>/api/movimientos</td><td>Registrar movimiento</td><td>Admin</td></tr>
                 <tr><td><span className="badge bg-primary">GET</span></td><td>/api/ventas</td><td>Ver ventas</td><td>Autenticado</td></tr>
                 <tr><td><span className="badge bg-success">POST</span></td><td>/api/ventas</td><td>Crear una venta</td><td>Autenticado</td></tr>
                 <tr><td><span className="badge bg-info text-dark">PATCH</span></td><td>/api/ventas/:id/anular</td><td>Anular venta</td><td>Admin</td></tr>
@@ -352,6 +365,7 @@ DB_PASSWORD=tu_contrasena
 DB_NAME=inventario_libreria
 DB_SSL=false
 JWT_SECRET=una_clave_secreta
+JWT_EXPIRY=8h
 NODE_ENV=development
 CORS_ORIGIN=http://localhost:5173`}
           </pre>
@@ -379,8 +393,13 @@ CORS_ORIGIN=http://localhost:5173`}
               </thead>
               <tbody>
                 <tr><td><code>pruebas/auth.test.js</code></td><td>Login, token JWT, rutas protegidas</td></tr>
+                <tr><td><code>pruebas/libros.test.js</code></td><td>CRUD de libros y permisos por rol</td></tr>
                 <tr><td><code>pruebas/clientes.test.js</code></td><td>CRUD de clientes y permisos por rol</td></tr>
                 <tr><td><code>pruebas/ventas.test.js</code></td><td>Creacion de ventas, validacion de totales y seguridad</td></tr>
+                <tr><td><code>pruebas/movimientos.test.js</code></td><td>Entradas y salidas de inventario (Kardex)</td></tr>
+                <tr><td><code>pruebas/usuarios.test.js</code></td><td>Gestion de usuarios y cambio de contrasena</td></tr>
+                <tr><td><code>pruebas/catalogos.test.js</code></td><td>CRUD de autores, categorias y proveedores</td></tr>
+                <tr><td><code>pruebas/dashboard.test.js</code></td><td>Estadisticas, graficas y datos del dashboard</td></tr>
               </tbody>
             </table>
           </div>

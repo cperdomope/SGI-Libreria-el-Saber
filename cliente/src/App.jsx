@@ -48,10 +48,12 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 // IMPORTACIÓN DE COMPONENTES
 // =====================================================
 
-// BarraNavegacion: el menú superior (navbar) que aparece en todas las páginas
-import BarraNavegacion from './components/BarraNavegacion';
+// RutaProtegida: verifica si hay sesión activa (si no, redirige a /acceso)
+import RutaProtegida from './components/RutaProtegida';
 // RutaProtegidaPorRol: verifica si el usuario tiene el permiso necesario
 import RutaProtegidaPorRol from './components/RutaProtegidaPorRol';
+// LayoutPrincipal: estructura visual (navbar + contenido + footer)
+import LayoutPrincipal from './components/LayoutPrincipal';
 
 // =====================================================
 // IMPORTACIÓN DE PÁGINAS
@@ -70,12 +72,6 @@ import PaginaCategorias from './pages/PaginaCategorias'; // CRUD de categorías
 import Acceso from './pages/Acceso';                    // Login
 import AdminUsuarios from './pages/AdminUsuarios';      // CRUD de usuarios
 
-// ── PÁGINAS DE DOCUMENTACIÓN ──
-import DocumentacionHistorias from './pages/DocumentacionHistorias';
-import DocumentacionCriterios from './pages/DocumentacionCriterios';
-import DocumentacionManualTecnico from './pages/DocumentacionManualTecnico';
-import DocumentacionManualUsuario from './pages/DocumentacionManualUsuario';
-
 // =====================================================
 // IMPORTACIÓN DEL CONTEXTO DE AUTENTICACIÓN
 // =====================================================
@@ -83,77 +79,7 @@ import DocumentacionManualUsuario from './pages/DocumentacionManualUsuario';
 // componente pueda acceder al usuario y sus permisos
 // useAuth: hook para consumir el contexto
 
-import { AuthProvider, useAuth } from './context/AuthContext';
-
-// =====================================================
-// COMPONENTE: RutaProtegida
-// =====================================================
-// ¿Qué hace?
-//   Verifica si hay un usuario con sesión activa.
-//   Si no hay sesión, redirige a /acceso (login).
-//   Si está cargando (verificando token), muestra un spinner.
-//
-// Se usa así: <RutaProtegida><MiPagina /></RutaProtegida>
-
-const RutaProtegida = ({ children }) => {
-  const { usuario, cargando } = useAuth();
-
-  // Mientras verifica si hay sesión, mostramos un spinner
-  // Esto evita un "flash" de la página de login
-  if (cargando) {
-    return (
-      <div className="d-flex justify-content-center align-items-center vh-100">
-        <div className="text-center">
-          <div className="spinner-border text-success" role="status">
-            <span className="visually-hidden">Cargando...</span>
-          </div>
-          <p className="mt-3 text-muted">Cargando sistema...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Si no hay usuario autenticado, redirigir al login
-  if (!usuario) {
-    return <Navigate to="/acceso" replace />;
-  }
-
-  // Si hay sesión, renderizar la página solicitada
-  return children;
-};
-
-// =====================================================
-// COMPONENTE: LayoutPrincipal
-// =====================================================
-// ¿Qué hace?
-//   Es la estructura visual que envuelve cada página:
-//   - Arriba: BarraNavegacion (navbar)
-//   - Centro: El contenido de la página (children)
-//   - Abajo: Footer con copyright
-//
-// Nota: min-vh-100 + flex hacen que el footer siempre
-// quede al final de la pantalla (sticky footer con flexbox)
-
-const LayoutPrincipal = ({ children }) => {
-  return (
-    <div className="d-flex flex-column min-vh-100">
-      {/* Barra de navegación (menú superior) */}
-      <BarraNavegacion />
-
-      {/* Contenido principal de la página */}
-      <main className="flex-grow-1">
-        {children}
-      </main>
-
-      {/* Footer (pie de página) */}
-      <footer className="bg-light text-center p-3 mt-auto border-top">
-        <small className="text-muted">
-          © 2026 SGI Librería el Saber - Proyecto SENA
-        </small>
-      </footer>
-    </div>
-  );
-};
+import { AuthProvider } from './context/AuthContext';
 
 // =====================================================
 // COMPONENTE: App (Aplicación Principal)
@@ -324,51 +250,6 @@ function App() {
                     <AdminUsuarios />
                   </LayoutPrincipal>
                 </RutaProtegidaPorRol>
-              </RutaProtegida>
-            }
-          />
-
-          {/* ══════════════════════════════════════════
-              RUTAS DE DOCUMENTACIÓN
-              Accesibles para cualquier usuario autenticado
-              ══════════════════════════════════════════ */}
-          <Route
-            path="/documentacion/historias"
-            element={
-              <RutaProtegida>
-                <LayoutPrincipal>
-                  <DocumentacionHistorias />
-                </LayoutPrincipal>
-              </RutaProtegida>
-            }
-          />
-          <Route
-            path="/documentacion/criterios"
-            element={
-              <RutaProtegida>
-                <LayoutPrincipal>
-                  <DocumentacionCriterios />
-                </LayoutPrincipal>
-              </RutaProtegida>
-            }
-          />
-          <Route
-            path="/documentacion/manual-tecnico"
-            element={
-              <RutaProtegida>
-                <LayoutPrincipal>
-                  <DocumentacionManualTecnico />
-                </LayoutPrincipal>
-              </RutaProtegida>
-            }
-          />
-          <Route
-            path="/documentacion/manual-usuario"
-            element={
-              <RutaProtegida>
-                <LayoutPrincipal>
-                  <DocumentacionManualUsuario />
-                </LayoutPrincipal>
               </RutaProtegida>
             }
           />

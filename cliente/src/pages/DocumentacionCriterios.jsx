@@ -345,8 +345,8 @@ const criterios = [
       'Solo el Administrador puede acceder a este modulo',
       'Se puede crear un proveedor con: empresa, NIT, contacto, email, telefono y direccion',
       'Se puede editar la informacion de un proveedor existente',
-      'Se puede activar o desactivar un proveedor (sin eliminarlo)',
-      'La tabla muestra el estado del proveedor (activo/inactivo)',
+      'Se puede eliminar un proveedor que no tenga movimientos de inventario asociados',
+      'Si el proveedor tiene movimientos registrados, el sistema muestra un mensaje de error y no permite la eliminacion',
       'Las columnas se ocultan progresivamente en pantallas pequenas'
     ]
   },

@@ -26,7 +26,7 @@
 //
 // =====================================================
 
-import React, { useState } from 'react';
+import React, { useState, lazy, Suspense } from 'react';
 // react-hook-form: manejo declarativo de formularios con validación
 import { useForm } from 'react-hook-form';
 // useNavigate: para redirigir al usuario después del login
@@ -35,6 +35,12 @@ import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 // useAuth: contexto global de autenticación
 import { useAuth } from '../context/AuthContext';
+
+// ── Componentes de documentación (carga diferida para no afectar el login) ──
+const DocumentacionHistorias = lazy(() => import('./DocumentacionHistorias'));
+const DocumentacionCriterios = lazy(() => import('./DocumentacionCriterios'));
+const DocumentacionManualTecnico = lazy(() => import('./DocumentacionManualTecnico'));
+const DocumentacionManualUsuario = lazy(() => import('./DocumentacionManualUsuario'));
 
 // ── Iconos SVG en línea para el formulario ──
 const Icons = {
@@ -105,6 +111,8 @@ const Acceso = () => {
   const [bloqueado, setBloqueado]             = useState(false);     // true = cuenta bloqueada
   const [errorServidor, setErrorServidor]     = useState('');        // Mensaje de error del backend
   const [mensajeDetallado, setMensajeDetallado] = useState('');      // Detalle del error
+  const [mostrarDocs, setMostrarDocs]         = useState(false);     // Modal de documentación
+  const [tabActiva, setTabActiva]             = useState('historias'); // Pestaña activa de docs
 
   // login: función del AuthContext que guarda usuario + token
   const { login }    = useAuth();
@@ -165,6 +173,34 @@ const Acceso = () => {
   return (
     <div className="login-container">
       <div className="login-card fade-in">
+
+        {/* ── BOTÓN DOCUMENTACIÓN (parte superior, llamativo) ── */}
+        <div className="text-center mb-3">
+          <button
+            type="button"
+            className="btn btn-lg w-100 fw-bold py-2 shadow-sm"
+            style={{
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '12px',
+              fontSize: '1.05rem',
+              letterSpacing: '0.5px',
+              transition: 'transform 0.2s, box-shadow 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'scale(1.03)';
+              e.currentTarget.style.boxShadow = '0 6px 20px rgba(102, 126, 234, 0.5)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'scale(1)';
+              e.currentTarget.style.boxShadow = '0 .125rem .25rem rgba(0,0,0,.075)';
+            }}
+            onClick={() => setMostrarDocs(true)}
+          >
+            📚 Documentación del Proyecto
+          </button>
+        </div>
 
         {/* ── ENCABEZADO: Logo + título ── */}
         <div className="login-header">
@@ -321,6 +357,74 @@ const Acceso = () => {
           <small className="text-muted">Librería el Saber &copy; 2026</small>
         </div>
       </div>
+
+      {/* ══════════════════════════════════════════════
+          MODAL DE DOCUMENTACIÓN
+          Se muestra cuando el usuario hace clic en
+          "Documentación del Proyecto". Tiene 4 pestañas
+          con carga diferida (lazy) para no afectar
+          la velocidad del login.
+          ══════════════════════════════════════════════ */}
+      {mostrarDocs && (
+        <div
+          className="modal show d-block"
+          tabIndex="-1"
+          style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setMostrarDocs(false); }}
+        >
+          <div className="modal-dialog modal-xl modal-dialog-scrollable" style={{ maxWidth: '95vw', maxHeight: '95vh' }}>
+            <div className="modal-content" style={{ maxHeight: '95vh' }}>
+              <div className="modal-header bg-primary text-white">
+                <h5 className="modal-title">Documentación del Proyecto — SGI Librería El Saber</h5>
+                <button type="button" className="btn-close btn-close-white" onClick={() => setMostrarDocs(false)} />
+              </div>
+
+              {/* Pestañas de navegación */}
+              <div className="modal-header p-0 border-0">
+                <ul className="nav nav-tabs w-100 border-0">
+                  {[
+                    { key: 'historias', label: 'Historias de Usuario' },
+                    { key: 'criterios', label: 'Criterios de Aceptación' },
+                    { key: 'tecnico', label: 'Manual Técnico' },
+                    { key: 'usuario', label: 'Manual de Usuario' }
+                  ].map(tab => (
+                    <li className="nav-item" key={tab.key}>
+                      <button
+                        className={`nav-link ${tabActiva === tab.key ? 'active' : ''}`}
+                        onClick={() => setTabActiva(tab.key)}
+                        type="button"
+                      >
+                        {tab.label}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Contenido de la pestaña activa */}
+              <div className="modal-body" style={{ overflowY: 'auto' }}>
+                <Suspense fallback={
+                  <div className="text-center py-5">
+                    <div className="spinner-border text-primary" role="status" />
+                    <p className="mt-2 text-muted">Cargando documentación...</p>
+                  </div>
+                }>
+                  {tabActiva === 'historias' && <DocumentacionHistorias />}
+                  {tabActiva === 'criterios' && <DocumentacionCriterios />}
+                  {tabActiva === 'tecnico' && <DocumentacionManualTecnico />}
+                  {tabActiva === 'usuario' && <DocumentacionManualUsuario />}
+                </Suspense>
+              </div>
+
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setMostrarDocs(false)}>
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

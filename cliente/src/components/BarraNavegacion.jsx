@@ -336,44 +336,6 @@ const BarraNavegacion = () => {
                 </ul>
               </li>
             )}
-            {/* ─────────────────────────────────────────────────
-                DROPDOWN: DOCUMENTACIÓN
-                Historias, Criterios, Manual Técnico, Manual de Usuario
-                ───────────────────────────────────────────────── */}
-            <li className="nav-item dropdown">
-              <a
-                className={claseDropdown(['/documentacion/historias', '/documentacion/criterios', '/documentacion/manual-tecnico', '/documentacion/manual-usuario'])}
-                href="#"
-                role="button"
-                data-bs-toggle="dropdown"
-                aria-expanded="false"
-              >
-                Documentación
-              </a>
-              <ul className="dropdown-menu shadow-sm border-0">
-                <li>
-                  <Link className="dropdown-item d-flex align-items-center gap-2 py-2" to="/documentacion/historias">
-                    Historias de Usuario
-                  </Link>
-                </li>
-                <li>
-                  <Link className="dropdown-item d-flex align-items-center gap-2 py-2" to="/documentacion/criterios">
-                    Criterios de Aceptación
-                  </Link>
-                </li>
-                <li><hr className="dropdown-divider" /></li>
-                <li>
-                  <Link className="dropdown-item d-flex align-items-center gap-2 py-2" to="/documentacion/manual-tecnico">
-                    Manual Técnico
-                  </Link>
-                </li>
-                <li>
-                  <Link className="dropdown-item d-flex align-items-center gap-2 py-2" to="/documentacion/manual-usuario">
-                    Manual de Usuario
-                  </Link>
-                </li>
-              </ul>
-            </li>
           </ul>
 
           {/* ─────────────────────────────────────────────────
