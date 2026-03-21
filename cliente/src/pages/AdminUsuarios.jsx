@@ -1,33 +1,43 @@
-/**
- * =====================================================
- * ADMINISTRACIÓN DE USUARIOS
- * =====================================================
- * Sistema de Gestión de Inventario - Librería
- * Proyecto SENA - Tecnólogo en ADSO
- *
- * @description CRUD completo para gestionar los usuarios
- * del sistema. Solo accesible para el rol Administrador.
- *
- * VALIDACIÓN CON react-hook-form:
- * - useForm() con shouldUnregister:true para que el campo
- *   "password" se desregistre cuando no está en el DOM
- *   (modo edición) y no se valide innecesariamente.
- * - register() conecta cada campo con reglas declarativas
- * - errors muestra mensajes bajo cada campo
- * - reset() carga los valores al abrir el modal
- *
- * @version 2.0.0
- */
+// =====================================================
+// PÁGINA: ADMINISTRACIÓN DE USUARIOS
+// =====================================================
+//
+// ¿Para qué sirve este archivo?
+//   Permite al Administrador gestionar los usuarios del sistema:
+//   - Ver la lista de todos los usuarios registrados
+//   - Crear un nuevo usuario (con nombre, email, contraseña y rol)
+//   - Editar los datos de un usuario existente (sin cambiar contraseña)
+//   - Activar o desactivar usuarios (no se eliminan, se desactivan)
+//
+// ¿Cómo se conecta con el sistema?
+//   1. Se renderiza en la ruta /admin/usuarios (ver App.jsx)
+//   2. Solo accesible para rol Administrador (permiso: gestionarUsuarios)
+//   3. Llama a la API:
+//      - GET /api/usuarios → listar todos los usuarios
+//      - POST /api/usuarios → crear nuevo usuario
+//      - PUT /api/usuarios/:id → editar datos del usuario
+//      - PATCH /api/usuarios/:id/estado → activar/desactivar
+//   4. Los usuarios creados aquí son los que hacen login en Acceso.jsx
+//   5. El rol (Admin=1 o Vendedor=2) define los permisos en AuthContext
+//
+// Conceptos clave para el jurado:
+//   - react-hook-form: maneja validación del formulario
+//   - shouldUnregister: cuando el campo "password" no se renderiza
+//     (modo edición), RHF lo ignora automáticamente
+//   - reset(): carga valores en el formulario al abrir el modal
+//   - Modal controlado por estado (no por Bootstrap JS)
+//
+// =====================================================
 
 import React, { useState, useEffect } from 'react';
+// react-hook-form: manejo declarativo de formularios con validación
 import { useForm } from 'react-hook-form';
+// api: cliente HTTP con Axios (incluye token JWT automáticamente)
 import api from '../services/api';
+// useAuth: para obtener el usuario actual (saber quién soy yo)
 import { useAuth } from '../context/AuthContext';
 
-// =====================================================
-// ICONOS SVG INLINE
-// =====================================================
-
+// ── Icono SVG en línea para el botón de editar ──
 const IconoEditar = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
     <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
@@ -39,30 +49,37 @@ const IconoEditar = () => (
 // =====================================================
 
 const AdminUsuarios = () => {
+  // Obtenemos el usuario actual para saber quién soy yo
+  // (así no me puedo desactivar a mí mismo)
   const { usuario: usuarioActual } = useAuth();
 
-  // ── Datos de la tabla ──
-  const [usuarios, setUsuarios]   = useState([]);
-  const [cargando, setCargando]   = useState(true);
-  const [error, setError]         = useState(null);
-  const [guardando, setGuardando] = useState(false);
+  // ── ESTADOS: Datos y UI ──
+  const [usuarios, setUsuarios]   = useState([]);     // Lista de usuarios del backend
+  const [cargando, setCargando]   = useState(true);   // Spinner mientras carga
+  const [error, setError]         = useState(null);   // Error general de carga
+  const [guardando, setGuardando] = useState(false);  // Spinner del botón guardar
 
-  // ── Estado del modal ──
-  const [mostrarModal, setMostrarModal] = useState(false);
-  const [esEdicion, setEsEdicion]       = useState(false);
-  const [idEditando, setIdEditando]     = useState(null);
+  // ── ESTADOS: Control del modal ──
+  const [mostrarModal, setMostrarModal] = useState(false);  // Visible o no
+  const [esEdicion, setEsEdicion]       = useState(false);  // true=editar, false=crear
+  const [idEditando, setIdEditando]     = useState(null);   // ID del usuario que se edita
 
-  // Error devuelto por el servidor (p.ej. email duplicado)
+  // Error devuelto por el servidor (ej: email duplicado)
   const [errorServidor, setErrorServidor] = useState('');
 
   // ─────────────────────────────────────────────────
-  // react-hook-form
-  //
-  // shouldUnregister: true → cuando el campo "password"
-  // se oculta (modo edición), RHF lo desregistra y NO
-  // aplica sus reglas de validación. Así el formulario
-  // de edición no exige contraseña.
+  // react-hook-form: inicialización
   // ─────────────────────────────────────────────────
+  // shouldUnregister: true → cuando el campo "password"
+  // se oculta del DOM (en modo edición), react-hook-form
+  // lo desregistra automáticamente y NO aplica sus reglas.
+  // Así el formulario de edición NO exige contraseña.
+  //
+  // register: conecta inputs con reglas de validación
+  // handleSubmit: valida antes de llamar guardarUsuario
+  // reset: carga valores en los campos del formulario
+  // errors: mensajes de error por campo
+
   const {
     register,
     handleSubmit,
@@ -71,13 +88,13 @@ const AdminUsuarios = () => {
   } = useForm({ shouldUnregister: true });
 
   // ─────────────────────────────────────────────────
-  // CARGA DE DATOS
+  // FUNCIÓN: Cargar usuarios desde la API
   // ─────────────────────────────────────────────────
 
   const cargarUsuarios = async () => {
     try {
       setCargando(true);
-      const respuesta = await api.get('/usuarios');
+      const respuesta = await api.get('/usuarios'); // GET /api/usuarios
       setUsuarios(respuesta.data.datos || []);
       setError(null);
     } catch (err) {
@@ -88,23 +105,26 @@ const AdminUsuarios = () => {
     }
   };
 
+  // Se ejecuta al montar el componente (primera carga)
   useEffect(() => {
     cargarUsuarios();
   }, []);
 
   // ─────────────────────────────────────────────────
-  // GESTIÓN DEL MODAL
+  // FUNCIONES DEL MODAL (Crear / Editar)
   // ─────────────────────────────────────────────────
 
+  // Preparar modal para CREAR un usuario nuevo
   const abrirModalNuevo = () => {
     setEsEdicion(false);
     setIdEditando(null);
     setErrorServidor('');
-    // reset() carga los valores por defecto al formulario RHF
+    // reset() establece valores por defecto en el formulario
     reset({ nombre_completo: '', email: '', password: '', rol_id: 2 });
     setMostrarModal(true);
   };
 
+  // Preparar modal para EDITAR un usuario existente
   const abrirModalEditar = (usuario) => {
     setEsEdicion(true);
     setIdEditando(usuario.id);
@@ -114,11 +134,12 @@ const AdminUsuarios = () => {
       nombre_completo: usuario.nombre_completo,
       email:           usuario.email,
       rol_id:          usuario.rol_id
-      // password no se incluye: el campo no se renderiza en edición
+      // password NO se incluye: el campo no se renderiza en edición
     });
     setMostrarModal(true);
   };
 
+  // Cerrar el modal y limpiar estados
   const cerrarModal = () => {
     setMostrarModal(false);
     setErrorServidor('');
@@ -126,11 +147,11 @@ const AdminUsuarios = () => {
   };
 
   // ─────────────────────────────────────────────────
-  // GUARDAR USUARIO
-  // handleSubmit() de RHF llama esta función SOLO si
-  // todos los register() pasaron su validación.
-  // Recibe { nombre_completo, email, password, rol_id }
+  // FUNCIÓN: Guardar usuario (crear o editar)
   // ─────────────────────────────────────────────────
+  // handleSubmit() de react-hook-form llama esta función
+  // SOLO si todos los campos pasaron su validación.
+  // Recibe { nombre_completo, email, password, rol_id }
 
   const guardarUsuario = async (data) => {
     setErrorServidor('');
@@ -138,12 +159,14 @@ const AdminUsuarios = () => {
       setGuardando(true);
 
       if (esEdicion) {
+        // PUT /api/usuarios/:id → actualizar (sin contraseña)
         await api.put(`/usuarios/${idEditando}`, {
           nombre_completo: data.nombre_completo,
           email:           data.email,
           rol_id:          parseInt(data.rol_id)
         });
       } else {
+        // POST /api/usuarios → crear nuevo (con contraseña)
         await api.post('/usuarios', {
           nombre_completo: data.nombre_completo,
           email:           data.email,
@@ -152,8 +175,8 @@ const AdminUsuarios = () => {
         });
       }
 
-      cerrarModal();
-      cargarUsuarios();
+      cerrarModal();       // Cerramos el modal
+      cargarUsuarios();    // Recargamos la lista
     } catch (err) {
       // Errores de negocio del backend (email duplicado, etc.)
       setErrorServidor(err.response?.data?.mensaje || 'Error al guardar el usuario');
@@ -163,32 +186,33 @@ const AdminUsuarios = () => {
   };
 
   // ─────────────────────────────────────────────────
-  // CAMBIAR ESTADO (ACTIVAR / DESACTIVAR)
+  // FUNCIÓN: Activar o desactivar un usuario
   // ─────────────────────────────────────────────────
+  // No se eliminan usuarios, se desactivan (soft delete).
+  // Un usuario inactivo no puede hacer login.
 
   const cambiarEstado = async (usuario) => {
     const accion = usuario.estado === 1 ? 'desactivar' : 'activar';
     if (!window.confirm(`¿Desea ${accion} al usuario "${usuario.nombre_completo}"?`)) return;
 
     try {
+      // PATCH /api/usuarios/:id/estado → cambia el estado
       await api.patch(`/usuarios/${usuario.id}/estado`);
-      cargarUsuarios();
+      cargarUsuarios(); // Recargamos la lista
     } catch (err) {
       alert(err.response?.data?.mensaje || 'Error al cambiar el estado');
     }
   };
 
-  // ─────────────────────────────────────────────────
-  // UTILIDADES
-  // ─────────────────────────────────────────────────
-
+  // ── Función utilitaria: formatear fecha ──
   const formatearFecha = (fecha) =>
     fecha ? new Date(fecha).toLocaleDateString('es-CO') : 'Nunca';
 
-  // ─────────────────────────────────────────────────
-  // RENDER
-  // ─────────────────────────────────────────────────
+  // =====================================================
+  // RENDERIZADO (JSX)
+  // =====================================================
 
+  // Si está cargando, mostramos solo el spinner
   if (cargando) {
     return (
       <div className="container mt-4 text-center">
@@ -203,7 +227,7 @@ const AdminUsuarios = () => {
     <div className="container-fluid py-4">
       <div className="card shadow-sm">
 
-        {/* ── ENCABEZADO ── */}
+        {/* ── ENCABEZADO con título y botón crear ── */}
         <div className="card-header bg-dark text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
           <h4 className="mb-0" style={{ fontSize: 'clamp(1rem, 3vw, 1.4rem)' }}>Gestión de Usuarios</h4>
           <button className="btn btn-sm btn-light flex-shrink-0" onClick={abrirModalNuevo}>
@@ -212,14 +236,16 @@ const AdminUsuarios = () => {
         </div>
 
         <div className="card-body">
+          {/* Error general de carga */}
           {error && <div className="alert alert-danger">{error}</div>}
 
-          {/* ── TABLA ── */}
+          {/* ── TABLA DE USUARIOS ── */}
           <div className="table-responsive">
             <table className="table table-hover align-middle">
               <thead className="table-dark">
                 <tr>
                   <th>Nombre</th>
+                  {/* d-none d-md-table-cell: oculto en móvil, visible en tablet+ */}
                   <th className="d-none d-md-table-cell">Email</th>
                   <th>Rol</th>
                   <th>Estado</th>
@@ -239,17 +265,21 @@ const AdminUsuarios = () => {
                     <tr key={usr.id}>
                       <td>
                         <div className="fw-semibold">{usr.nombre_completo}</div>
+                        {/* En móvil, mostramos el email debajo del nombre */}
                         <small className="text-muted d-md-none">{usr.email}</small>
+                        {/* Indicador "(Tú)" si es el usuario actual */}
                         {usr.id === usuarioActual?.id && (
                           <small className="text-primary d-block">(Tú)</small>
                         )}
                       </td>
                       <td className="text-muted d-none d-md-table-cell">{usr.email}</td>
+                      {/* Badge de rol: rojo=Admin, azul=Vendedor */}
                       <td>
                         <span className={`badge ${usr.rol_id === 1 ? 'bg-danger' : 'bg-info'}`}>
                           {usr.rol_id === 1 ? 'Admin' : 'Vendedor'}
                         </span>
                       </td>
+                      {/* Badge de estado: verde=Activo, gris=Inactivo */}
                       <td>
                         <span className={`badge ${usr.estado === 1 ? 'bg-success' : 'bg-secondary'}`}>
                           {usr.estado === 1 ? 'Activo' : 'Inactivo'}
@@ -258,6 +288,7 @@ const AdminUsuarios = () => {
                       <td className="text-muted small d-none d-lg-table-cell">{formatearFecha(usr.ultimo_acceso)}</td>
                       <td>
                         <div className="d-flex align-items-center gap-1">
+                          {/* Botón editar */}
                           <button
                             className="btn btn-sm btn-outline-primary"
                             onClick={() => abrirModalEditar(usr)}
@@ -265,6 +296,7 @@ const AdminUsuarios = () => {
                           >
                             <IconoEditar />
                           </button>
+                          {/* Botón activar/desactivar (no aparece para mí mismo) */}
                           {usr.id !== usuarioActual?.id && (
                             <button
                               className={`btn btn-sm ${usr.estado === 1 ? 'btn-outline-danger' : 'btn-outline-success'}`}
@@ -289,9 +321,12 @@ const AdminUsuarios = () => {
         </div>
       </div>
 
-      {/* ─────────────────────────────────────────────────
-          MODAL CREAR / EDITAR
-          ───────────────────────────────────────────────── */}
+      {/* ══════════════════════════════════════════════════
+          MODAL: Crear o Editar Usuario
+          ══════════════════════════════════════════════════
+          Este modal es CONTROLADO POR ESTADO (mostrarModal),
+          a diferencia de los otros modales que usan Bootstrap JS.
+          Se muestra con className="modal show d-block" */}
       {mostrarModal && (
         <div
           className="modal show d-block"
@@ -308,11 +343,11 @@ const AdminUsuarios = () => {
                 <button type="button" className="btn-close btn-close-white" onClick={cerrarModal} />
               </div>
 
-              {/* ── handleSubmit valida antes de llamar guardarUsuario ── */}
+              {/* handleSubmit valida los campos antes de llamar guardarUsuario */}
               <form onSubmit={handleSubmit(guardarUsuario)} noValidate>
                 <div className="modal-body">
 
-                  {/* Error del servidor (email duplicado, etc.) */}
+                  {/* Error del servidor (ej: email duplicado) */}
                   {errorServidor && (
                     <div className="alert alert-danger py-2">{errorServidor}</div>
                   )}
@@ -361,11 +396,10 @@ const AdminUsuarios = () => {
                     )}
                   </div>
 
-                  {/* ── CONTRASEÑA (solo en creación) ──
-                      Al estar dentro de {!esEdicion && (...)}, cuando
-                      esEdicion=true el input no se renderiza.
-                      Con shouldUnregister:true, RHF lo desregistra
-                      automáticamente y no valida este campo. */}
+                  {/* ── CONTRASEÑA (solo al CREAR, no al editar) ──
+                      Cuando esEdicion=true, este bloque NO se renderiza.
+                      Gracias a shouldUnregister:true, react-hook-form
+                      desregistra el campo y no exige contraseña al editar. */}
                   {!esEdicion && (
                     <div className="mb-3">
                       <label className="form-label fw-semibold">Contraseña *</label>
@@ -390,7 +424,7 @@ const AdminUsuarios = () => {
                     </div>
                   )}
 
-                  {/* ── ROL ── */}
+                  {/* ── ROL (Administrador o Vendedor) ── */}
                   <div className="mb-3">
                     <label className="form-label fw-semibold">Rol *</label>
                     <select
@@ -412,6 +446,7 @@ const AdminUsuarios = () => {
 
                 </div>
 
+                {/* ── Botones del pie del modal ── */}
                 <div className="modal-footer">
                   <button type="button" className="btn btn-secondary" onClick={cerrarModal}>
                     Cancelar

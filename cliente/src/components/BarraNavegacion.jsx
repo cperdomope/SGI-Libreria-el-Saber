@@ -1,37 +1,47 @@
-/**
- * =====================================================
- * BARRA DE NAVEGACIÓN PRINCIPAL
- * =====================================================
- * Sistema de Gestión de Inventario - Librería
- * Proyecto SENA - Tecnólogo en ADSO
- *
- * @description Componente de navegación responsivo con control RBAC.
- * Muestra/oculta opciones de menú según los permisos del usuario.
- *
- * CARACTERÍSTICAS:
- * - Menú responsivo (Bootstrap 5)
- * - Dropdowns organizados por área funcional
- * - Indicador visual de ruta activa
- * - Información del usuario y rol
- * - Botón de logout con confirmación
- *
- * ÁREAS DE MENÚ:
- * - Dashboard: Solo Administradores
- * - Gestión Comercial: Ventas, Historial, Clientes
- * - Logística: Inventario, Movimientos, Autores, Categorías, Proveedores
- *
- * @author Equipo de Desarrollo SGI
- * @version 2.0.0
- */
+// =====================================================
+// COMPONENTE: BARRA DE NAVEGACIÓN PRINCIPAL
+// =====================================================
+//
+// ¿Para qué sirve este archivo?
+//   Es el menú principal del sistema que aparece en la parte
+//   superior de TODAS las páginas. Permite al usuario navegar
+//   entre los diferentes módulos (Ventas, Inventario, etc.)
+//
+// ¿Cómo se conecta con el sistema?
+//   Se renderiza en App.jsx cuando hay un usuario logueado.
+//   Usa el AuthContext para saber:
+//     - Quién es el usuario (nombre, rol)
+//     - Qué permisos tiene (para mostrar/ocultar opciones)
+//     - La función logout (para cerrar sesión)
+//
+// ¿Cómo funciona el menú por roles?
+//   Cada opción del menú está envuelta en un {tienePermiso('...') && (...)}
+//   Esto significa: "solo muestra esta opción si el usuario tiene ese permiso".
+//   Ejemplo: tienePermiso('verDashboard') → solo Admin lo ve.
+//
+// Áreas del menú:
+//   - Dashboard: Solo Admin → vista panorámica del negocio
+//   - Gestión Comercial: Ventas, Historial, Clientes
+//   - Logística: Inventario, Movimientos, Autores, Categorías, Proveedores
+//   - Usuario: Cambiar contraseña, Gestión usuarios (Admin), Cerrar sesión
+//
+// =====================================================
 
 import React, { useState } from 'react';
+// Link: para navegar entre páginas sin recargar (SPA)
+// useNavigate: para redirigir programáticamente
+// useLocation: para saber en qué página estamos (ruta activa)
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+// useAuth: nuestro contexto global de autenticación
 import { useAuth } from '../context/AuthContext';
+// Modal para que el usuario pueda cambiar su contraseña
 import ModalCambiarPassword from './ModalCambiarPassword';
 
-// =====================================================
-// ICONOS SVG (Bootstrap Icons - MIT License)
-// =====================================================
+// ─────────────────────────────────────────────────────
+// ICONOS SVG
+// ─────────────────────────────────────────────────────
+// Importamos los iconos como archivos SVG desde la carpeta assets.
+// Cada icono se usa en las opciones del menú para que sea más visual.
 
 import iconoLibro from '../assets/icons/icono-libro.svg';
 import iconoInventario from '../assets/icons/icono-inventario.svg';
@@ -44,14 +54,13 @@ import iconoAutores from '../assets/icons/icono-autores.svg';
 import iconoCategorias from '../assets/icons/icono-categorias.svg';
 import iconoSalir from '../assets/icons/icono-salir.svg';
 
-// =====================================================
+// ─────────────────────────────────────────────────────
 // COMPONENTES DE ICONOS
-// =====================================================
-
-/**
- * Componentes wrapper para iconos SVG con tamaño configurable.
- * Facilitan el uso consistente de iconos en el menú.
- */
+// ─────────────────────────────────────────────────────
+// Cada icono es un mini-componente que renderiza una imagen SVG.
+// Reciben un prop "size" para controlar el tamaño.
+// Esto permite escribir <IconoVentas /> en vez de repetir
+// toda la etiqueta <img src=... /> cada vez.
 
 const IconoLibro = ({ size = 22 }) => (
   <img
@@ -100,69 +109,57 @@ const IconoSalir = ({ size = 18 }) => (
 );
 
 // =====================================================
-// COMPONENTE PRINCIPAL
+// COMPONENTE PRINCIPAL: BarraNavegacion
 // =====================================================
-
-/**
- * Barra de navegación principal de la aplicación.
- * Implementa control de acceso basado en roles (RBAC).
- *
- * @returns {JSX.Element} Navbar responsiva con menús dinámicos
- */
 const BarraNavegacion = () => {
-  const { usuario, logout, tienePermiso, nombreRol, ROLES } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
 
-  // Estado para el modal de cambio de contraseña
+  // ── Extraemos del contexto de autenticación ──
+  // usuario: datos del usuario logueado (nombre, rol, etc.)
+  // logout: función para cerrar sesión
+  // tienePermiso: función que verifica si el rol puede hacer algo
+  // nombreRol: función que devuelve "Administrador" o "Vendedor"
+  const { usuario, logout, tienePermiso, nombreRol, ROLES } = useAuth();
+
+  // Hooks de React Router para navegación
+  const navigate = useNavigate();    // Para redirigir programáticamente
+  const location = useLocation();    // Para saber la ruta actual (ej: '/ventas')
+
+  // Estado: controla si el modal de cambiar contraseña está abierto o cerrado
   const [mostrarCambioPassword, setMostrarCambioPassword] = useState(false);
 
   // ─────────────────────────────────────────────────
-  // MANEJADORES DE EVENTOS
+  // FUNCIONES AUXILIARES
   // ─────────────────────────────────────────────────
 
-  /**
-   * Cierra la sesión del usuario previa confirmación.
-   */
+  // Cierra sesión con confirmación para evitar cierres accidentales
   const manejarSalida = () => {
     if (window.confirm('¿Desea cerrar sesión?')) {
-      logout();
+      logout();  // Limpia el token JWT y redirige a login
     }
   };
 
-  /**
-   * Obtiene el nombre del usuario según su rol.
-   * @returns {string} Nombre del usuario
-   */
+  // Obtiene el nombre del usuario para mostrarlo en el menú
+  // Si no tiene nombre, muestra "Usuario" como fallback
   const obtenerNombreUsuario = () => {
     return usuario?.nombre_completo || 'Usuario';
   };
 
   // ─────────────────────────────────────────────────
-  // UTILIDADES DE ESTILOS
+  // FUNCIONES DE ESTILOS DINÁMICOS
   // ─────────────────────────────────────────────────
+  // Estas funciones determinan qué clases CSS aplicar
+  // para resaltar la opción del menú que está activa.
 
-  /**
-   * Verifica si una ruta específica es la actual.
-   * @param {string} ruta - Ruta a comparar
-   * @returns {boolean} True si es la ruta activa
-   */
+  // Compara si la ruta dada es la página actual
   const esRutaActiva = (ruta) => location.pathname === ruta;
 
-  /**
-   * Verifica si alguna ruta del array está activa.
-   * Usado para destacar dropdowns cuando un hijo está activo.
-   * @param {string[]} rutas - Array de rutas
-   * @returns {boolean} True si alguna está activa
-   */
+  // Para los dropdowns: verifica si ALGUNA de sus rutas hijas está activa
+  // Ej: si estoy en /ventas, el dropdown "Gestión Comercial" se resalta
   const dropdownActivo = (rutas) => rutas.includes(location.pathname);
 
-  /**
-   * Genera clases CSS para links normales.
-   * Aplica estilo destacado si la ruta está activa.
-   * @param {string} ruta - Ruta del link
-   * @returns {string} Clases CSS
-   */
+  // Genera las clases CSS para un link normal del menú
+  // Si la ruta está activa → fondo blanco semitransparente + negrita
+  // Si no → texto blanco con opacidad reducida
   const claseLink = (ruta) => {
     const base = 'nav-link d-flex align-items-center gap-2 px-3 mx-1';
     return esRutaActiva(ruta)
@@ -170,12 +167,7 @@ const BarraNavegacion = () => {
       : `${base} text-white text-opacity-75`;
   };
 
-  /**
-   * Genera clases CSS para toggles de dropdown.
-   * Aplica estilo destacado si algún hijo está activo.
-   * @param {string[]} rutas - Rutas hijas del dropdown
-   * @returns {string} Clases CSS
-   */
+  // Igual que claseLink pero para los botones de dropdown
   const claseDropdown = (rutas) => {
     const base = 'nav-link dropdown-toggle d-flex align-items-center gap-2 px-3 mx-1';
     return dropdownActivo(rutas)
@@ -344,6 +336,44 @@ const BarraNavegacion = () => {
                 </ul>
               </li>
             )}
+            {/* ─────────────────────────────────────────────────
+                DROPDOWN: DOCUMENTACIÓN
+                Historias, Criterios, Manual Técnico, Manual de Usuario
+                ───────────────────────────────────────────────── */}
+            <li className="nav-item dropdown">
+              <a
+                className={claseDropdown(['/documentacion/historias', '/documentacion/criterios', '/documentacion/manual-tecnico', '/documentacion/manual-usuario'])}
+                href="#"
+                role="button"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+              >
+                Documentación
+              </a>
+              <ul className="dropdown-menu shadow-sm border-0">
+                <li>
+                  <Link className="dropdown-item d-flex align-items-center gap-2 py-2" to="/documentacion/historias">
+                    Historias de Usuario
+                  </Link>
+                </li>
+                <li>
+                  <Link className="dropdown-item d-flex align-items-center gap-2 py-2" to="/documentacion/criterios">
+                    Criterios de Aceptación
+                  </Link>
+                </li>
+                <li><hr className="dropdown-divider" /></li>
+                <li>
+                  <Link className="dropdown-item d-flex align-items-center gap-2 py-2" to="/documentacion/manual-tecnico">
+                    Manual Técnico
+                  </Link>
+                </li>
+                <li>
+                  <Link className="dropdown-item d-flex align-items-center gap-2 py-2" to="/documentacion/manual-usuario">
+                    Manual de Usuario
+                  </Link>
+                </li>
+              </ul>
+            </li>
           </ul>
 
           {/* ─────────────────────────────────────────────────

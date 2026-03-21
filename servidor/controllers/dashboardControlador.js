@@ -1,115 +1,95 @@
 // =====================================================
-// CONTROLADOR DEL DASHBOARD
+// CONTROLADOR DEL DASHBOARD — PANEL DE CONTROL
 // =====================================================
-// Este archivo calcula y entrega todas las estadísticas
-// que se muestran en el panel principal del Administrador.
 //
-// ¿Qué muestra el Dashboard?
-//   - Ventas del día y del mes (cantidad e ingresos)
-//   - Top 5 productos más vendidos
-//   - Top 5 mejores clientes
-//   - Libros con stock bajo (alertas de inventario)
-//   - Total de libros y clientes registrados
-//   - Gráfica de ventas por mes (últimos 6 meses)
-//   - Gráfica de libros por categoría
+// ¿Para qué sirve este archivo?
+//   Es el cerebro del Dashboard. Calcula TODAS las estadísticas
+//   que el administrador necesita para tomar decisiones de negocio:
+//   ventas, inventario, clientes, tendencias y alertas.
 //
-// Dos optimizaciones importantes aquí:
+// ¿Cómo se conecta con el sistema?
+//   El frontend (Inicio.jsx) hace GET /api/dashboard
+//   → Este controlador ejecuta las consultas SQL
+//   → Devuelve un objeto JSON con todos los datos organizados
 //
-// 1. PARALELISMO: Las 8 consultas SQL se ejecutan al mismo tiempo
-//    usando Promise.all(). Sin esto, se ejecutarían una por una,
-//    multiplicando el tiempo de respuesta.
+// ¿Por qué es importante?
+//   Sin este endpoint, el administrador tendría que revisar
+//   cada módulo por separado. Aquí centralizamos TODO para
+//   dar una vista panorámica del negocio en una sola pantalla.
 //
-// 2. CACHÉ EN MEMORIA: Los resultados se guardan 60 segundos.
-//    Si el admin recarga el dashboard repetidamente,
-//    no se ejecutan las 8 consultas cada vez.
+// OPTIMIZACIONES CLAVE:
+//   1. Promise.all() → Las consultas se ejecutan en PARALELO
+//      (tiempo = la más lenta, no la suma de todas)
+//   2. Caché de 60 segundos → Evita repetir consultas pesadas
 //
-// 🔹 En la sustentación puedo decir:
-// "El dashboard ejecuta 8 consultas SQL en paralelo usando Promise.all(),
-//  lo que reduce el tiempo de respuesta al máximo de las consultas
-//  en lugar de la suma. Además implementamos caché de 60 segundos
-//  para evitar sobrecargar la base de datos con consultas repetidas."
 // =====================================================
 
-// Conexión al pool de base de datos MySQL
+// Importamos la conexión al pool de MySQL
 const db = require('../config/db');
 
-// ─────────────────────────────────────────────────────────
-// LÍMITES CONFIGURABLES
-// ─────────────────────────────────────────────────────────
-// Centralizamos estos valores para poder ajustarlos fácilmente
-// sin tener que buscar en todo el código dónde están los números.
+// ─────────────────────────────────────────────────────
+// CONFIGURACIÓN
+// ─────────────────────────────────────────────────────
+// Centralizamos los límites para poder ajustarlos fácilmente
 const LIMITES = {
-  TOP_PRODUCTOS: 5,   // Cuántos productos mostrar en el ranking
-  TOP_CLIENTES:  5,   // Cuántos clientes mostrar en el ranking
-  ALERTAS_STOCK: 10   // Cuántos libros con stock bajo mostrar
+  TOP_PRODUCTOS:   5,    // Cuántos productos mostrar en el ranking
+  TOP_CLIENTES:    5,    // Cuántos clientes mostrar en el ranking
+  ALERTAS_STOCK:   10,   // Cuántos libros con stock bajo mostrar
+  ULTIMAS_VENTAS:  5     // Cuántas ventas recientes mostrar
 };
 
-// ─────────────────────────────────────────────────────────
-// CACHÉ EN MEMORIA (RAM)
-// ─────────────────────────────────────────────────────────
-// ¿Qué es la caché aquí?
-// Es un objeto que guarda temporalmente los últimos resultados
-// calculados para no repetir las consultas inmediatamente.
-//
-// Funciona así:
-//   - Primera visita: ejecuta las 8 consultas, guarda resultado
-//   - Segunda visita (< 60s después): devuelve el resultado guardado
-//   - Pasados 60s: ejecuta las consultas de nuevo y actualiza la caché
-//
-// LIMITACIÓN: esta caché es local al proceso del servidor.
-// Si se reinicia el servidor o hay múltiples instancias,
-// cada una tiene su propia caché independiente.
-// Para producción distribuida, se usaría Redis.
+// ─────────────────────────────────────────────────────
+// CACHÉ EN MEMORIA
+// ─────────────────────────────────────────────────────
+// Guarda temporalmente los resultados para no repetir las consultas.
+// - Primera visita: ejecuta las consultas y guarda el resultado
+// - Visita dentro de 60 segundos: devuelve el resultado guardado
+// - Después de 60 segundos: vuelve a consultar la BD
 const _cache = {
-  datos:     null,   // Aquí guardamos los datos calculados
-  timestamp: 0,      // Cuándo se guardaron (milisegundos Unix)
-  TTL_MS:    60_000  // Time To Live: 60 segundos (60,000 milisegundos)
+  datos:     null,
+  timestamp: 0,
+  TTL_MS:    60_000  // 60 segundos de vida útil
 };
 
 // =====================================================
-// CONTROLADOR: OBTENER ESTADÍSTICAS DEL DASHBOARD
+// CONTROLADOR PRINCIPAL: obtenerEstadisticas
 // =====================================================
 // Ruta: GET /api/dashboard (solo Admin)
-// Ejecuta múltiples consultas en paralelo y retorna todo en una respuesta.
+//
+// Entrada: nada (solo necesita el token JWT del admin)
+// Salida: JSON con todas las estadísticas del negocio
+//
 exports.obtenerEstadisticas = async (_req, res) => {
 
-  // ─────────────────────────────────────────────────
-  // VERIFICAR CACHÉ ANTES DE CONSULTAR LA BD
-  // ─────────────────────────────────────────────────
-  // Si los datos en caché tienen menos de 60 segundos, los devolvemos directamente.
-  // Date.now() devuelve el tiempo actual en milisegundos.
+  // Paso 1: Verificar si tenemos datos frescos en caché
   const ahora = Date.now();
   if (_cache.datos && ahora - _cache.timestamp < _cache.TTL_MS) {
-    // Respondemos inmediatamente sin tocar la base de datos
     return res.json({ exito: true, datos: _cache.datos });
   }
 
   try {
-    // ─────────────────────────────────────────────────
-    // EJECUTAR LAS 8 CONSULTAS EN PARALELO
-    // ─────────────────────────────────────────────────
-    // Promise.all() inicia todas las consultas al mismo tiempo.
-    // El resultado llega cuando TODAS terminan.
-    // Si cualquiera falla, todo el Promise.all() falla (catch lo maneja).
-    //
-    // Sin Promise.all (secuencial): tiempo = Q1 + Q2 + Q3 + ... + Q8
-    // Con Promise.all (paralelo):   tiempo = max(Q1, Q2, Q3, ..., Q8)
+    // Paso 2: Ejecutar TODAS las consultas en paralelo con Promise.all()
+    // Esto es mucho más rápido que ejecutarlas una por una
     const [
       [ventasDia],
       [ventasMes],
+      [ventasMesAnterior],
+      [ventasSemana],
       [productosMasVendidos],
       [mejoresClientes],
       [librosStockBajo],
       [totalLibros],
       [totalClientes],
+      [totalProveedores],
+      [valorInventario],
       [ventasPorMes],
-      [librosPorCategoria]
+      [librosPorCategoria],
+      [ventasPorDiaSemana],
+      [ultimasVentas]
     ] = await Promise.all([
 
-      // CONSULTA 1: Ventas registradas HOY
-      // Usamos rango (>= / <) en lugar de DATE(col) = CURDATE()
-      // porque DATE() sobre la columna impide usar el índice idx_ventas_fecha.
-      // Con el rango, MySQL puede usar el índice y es mucho más rápido.
+      // ── CONSULTA 1: Ventas de HOY ──
+      // COUNT = cuántas ventas, SUM = total en dinero
       db.query(`
         SELECT COUNT(*) AS cantidad, COALESCE(SUM(total_venta), 0) AS ingresos
         FROM mdc_ventas
@@ -117,9 +97,7 @@ exports.obtenerEstadisticas = async (_req, res) => {
           AND fecha_venta <  CURDATE() + INTERVAL 1 DAY
       `),
 
-      // CONSULTA 2: Ventas del MES ACTUAL
-      // DATE_FORMAT calcula el primer día del mes actual y el primero del siguiente.
-      // Ejemplo para marzo 2026: entre '2026-03-01' y '2026-04-01'
+      // ── CONSULTA 2: Ventas del MES ACTUAL ──
       db.query(`
         SELECT COUNT(*) AS cantidad, COALESCE(SUM(total_venta), 0) AS ingresos
         FROM mdc_ventas
@@ -127,8 +105,24 @@ exports.obtenerEstadisticas = async (_req, res) => {
           AND fecha_venta <  DATE_FORMAT(CURDATE() + INTERVAL 1 MONTH, '%Y-%m-01')
       `),
 
-      // CONSULTA 3: Top 5 libros más vendidos (histórico)
-      // GROUP BY libro → SUM(cantidad vendida) → ORDER BY más vendido primero
+      // ── CONSULTA 3: Ventas del MES ANTERIOR (para comparar crecimiento) ──
+      db.query(`
+        SELECT COUNT(*) AS cantidad, COALESCE(SUM(total_venta), 0) AS ingresos
+        FROM mdc_ventas
+        WHERE fecha_venta >= DATE_FORMAT(CURDATE() - INTERVAL 1 MONTH, '%Y-%m-01')
+          AND fecha_venta <  DATE_FORMAT(CURDATE(), '%Y-%m-01')
+      `),
+
+      // ── CONSULTA 4: Ventas de la SEMANA actual ──
+      // YEARWEEK agrupa por semana del año
+      db.query(`
+        SELECT COUNT(*) AS cantidad, COALESCE(SUM(total_venta), 0) AS ingresos
+        FROM mdc_ventas
+        WHERE YEARWEEK(fecha_venta, 1) = YEARWEEK(CURDATE(), 1)
+      `),
+
+      // ── CONSULTA 5: Top 5 libros más vendidos ──
+      // GROUP BY agrupa las ventas por libro y SUM suma las cantidades
       db.query(`
         SELECT
           l.titulo,
@@ -144,8 +138,7 @@ exports.obtenerEstadisticas = async (_req, res) => {
         LIMIT ?
       `, [LIMITES.TOP_PRODUCTOS]),
 
-      // CONSULTA 4: Top 5 mejores clientes (por número de compras)
-      // GROUP BY cliente → COUNT(ventas) → ORDER BY más compras primero
+      // ── CONSULTA 6: Top 5 mejores clientes ──
       db.query(`
         SELECT
           c.nombre_completo,
@@ -159,9 +152,8 @@ exports.obtenerEstadisticas = async (_req, res) => {
         LIMIT ?
       `, [LIMITES.TOP_CLIENTES]),
 
-      // CONSULTA 5: Libros con stock CRÍTICO (por debajo del mínimo)
-      // stock_actual < stock_minimo = alerta roja de inventario
-      // ORDER BY el más crítico primero (mayor diferencia primero)
+      // ── CONSULTA 7: Libros con stock CRÍTICO ──
+      // stock_actual < stock_minimo = necesita reposición urgente
       db.query(`
         SELECT
           l.id, l.titulo, l.isbn,
@@ -174,14 +166,25 @@ exports.obtenerEstadisticas = async (_req, res) => {
         LIMIT ?
       `, [LIMITES.ALERTAS_STOCK]),
 
-      // CONSULTA 6a: Total de libros en el inventario
+      // ── CONSULTA 8: Total de libros registrados ──
       db.query('SELECT COUNT(*) AS total FROM mdc_libros'),
 
-      // CONSULTA 6b: Total de clientes registrados
+      // ── CONSULTA 9: Total de clientes registrados ──
       db.query('SELECT COUNT(*) AS total FROM mdc_clientes'),
 
-      // CONSULTA 7: Ventas agrupadas por mes (últimos 6 meses)
-      // Para la gráfica de barras del historial de ventas
+      // ── CONSULTA 10: Total de proveedores activos ──
+      db.query('SELECT COUNT(*) AS total FROM mdc_proveedores'),
+
+      // ── CONSULTA 11: Valor total del inventario ──
+      // stock_actual × precio_venta de cada libro = valor en estantería
+      db.query(`
+        SELECT COALESCE(SUM(stock_actual * precio_venta), 0) AS valor_total,
+               COALESCE(SUM(stock_actual), 0) AS unidades_totales
+        FROM mdc_libros
+      `),
+
+      // ── CONSULTA 12: Ventas por mes (últimos 6 meses) ──
+      // Para la gráfica de tendencia de ventas
       db.query(`
         SELECT
           DATE_FORMAT(fecha_venta, '%Y-%m')   AS mes,
@@ -194,36 +197,97 @@ exports.obtenerEstadisticas = async (_req, res) => {
         ORDER BY mes ASC
       `),
 
-      // CONSULTA 8: Libros agrupados por categoría
-      // Para la gráfica de torta de distribución del catálogo
+      // ── CONSULTA 13: Libros por categoría ──
+      // Para la gráfica de distribución del catálogo
       db.query(`
         SELECT c.nombre AS categoria, COUNT(l.id) AS total_libros
         FROM mdc_categorias c
         LEFT JOIN mdc_libros l ON l.categoria_id = c.id
         GROUP BY c.id, c.nombre
         ORDER BY total_libros DESC
-      `)
+      `),
+
+      // ── CONSULTA 14: Ventas por día de la semana (últimos 30 días) ──
+      // Para saber qué días se vende más
+      db.query(`
+        SELECT
+          DAYOFWEEK(fecha_venta) AS dia_num,
+          CASE DAYOFWEEK(fecha_venta)
+            WHEN 1 THEN 'Dom' WHEN 2 THEN 'Lun' WHEN 3 THEN 'Mar'
+            WHEN 4 THEN 'Mié' WHEN 5 THEN 'Jue' WHEN 6 THEN 'Vie'
+            WHEN 7 THEN 'Sáb'
+          END AS dia_nombre,
+          COUNT(*) AS cantidad,
+          COALESCE(SUM(total_venta), 0) AS ingresos
+        FROM mdc_ventas
+        WHERE fecha_venta >= CURDATE() - INTERVAL 30 DAY
+        GROUP BY dia_num, dia_nombre
+        ORDER BY dia_num
+      `),
+
+      // ── CONSULTA 15: Últimas 5 ventas realizadas ──
+      // Para ver la actividad reciente del negocio
+      db.query(`
+        SELECT
+          v.id,
+          v.total_venta,
+          v.metodo_pago,
+          v.fecha_venta,
+          c.nombre_completo AS cliente,
+          u.nombre_completo AS vendedor
+        FROM mdc_ventas v
+        LEFT JOIN mdc_clientes c ON v.cliente_id = c.id
+        LEFT JOIN mdc_usuarios u ON v.usuario_id = u.id
+        ORDER BY v.fecha_venta DESC
+        LIMIT ?
+      `, [LIMITES.ULTIMAS_VENTAS])
     ]);
 
     // ─────────────────────────────────────────────────
-    // CONSTRUIR EL OBJETO DE RESPUESTA
+    // CALCULAR PORCENTAJE DE CRECIMIENTO
     // ─────────────────────────────────────────────────
-    // Transformamos los resultados brutos de MySQL en un formato
-    // limpio y consistente para el frontend.
-    // parseFloat() y parseInt() aseguran que los números no vengan
-    // como strings (MySQL a veces retorna números como texto).
+    // Fórmula: ((actual - anterior) / anterior) * 100
+    // Si el mes anterior fue 0, mostramos 100% de crecimiento
+    const ingresosActual  = parseFloat(ventasMes[0].ingresos) || 0;
+    const ingresosAnterior = parseFloat(ventasMesAnterior[0].ingresos) || 0;
+    const crecimiento = ingresosAnterior > 0
+      ? (((ingresosActual - ingresosAnterior) / ingresosAnterior) * 100).toFixed(1)
+      : (ingresosActual > 0 ? 100 : 0);
+
+    // ─────────────────────────────────────────────────
+    // CONSTRUIR OBJETO DE RESPUESTA
+    // ─────────────────────────────────────────────────
+    // Transformamos los resultados SQL en un formato limpio para el frontend
     const datos = {
-      // Métricas de ventas
+
+      // === MÉTRICAS PRINCIPALES (KPIs) ===
       ventas_hoy: {
         cantidad: ventasDia[0].cantidad,
         ingresos: parseFloat(ventasDia[0].ingresos) || 0
       },
+      ventas_semana: {
+        cantidad: ventasSemana[0].cantidad,
+        ingresos: parseFloat(ventasSemana[0].ingresos) || 0
+      },
       ventas_mes: {
-        cantidad: ventasMes[0].cantidad,
-        ingresos: parseFloat(ventasMes[0].ingresos) || 0
+        cantidad:    ventasMes[0].cantidad,
+        ingresos:    ingresosActual,
+        crecimiento: parseFloat(crecimiento)
       },
 
-      // Rankings
+      // === TOTALES GENERALES ===
+      total_libros:      totalLibros[0].total,
+      total_clientes:    totalClientes[0].total,
+      total_proveedores: totalProveedores[0].total,
+      alertas_stock:     librosStockBajo.length,
+
+      // === VALOR DEL INVENTARIO ===
+      inventario: {
+        valor_total:      parseFloat(valorInventario[0].valor_total) || 0,
+        unidades_totales: parseInt(valorInventario[0].unidades_totales) || 0
+      },
+
+      // === RANKINGS ===
       productos_mas_vendidos: productosMasVendidos.map(p => ({
         titulo:             p.titulo,
         autor:              p.autor || 'Sin autor',
@@ -238,40 +302,46 @@ exports.obtenerEstadisticas = async (_req, res) => {
         total_gastado: parseFloat(c.total_gastado) || 0
       })),
 
-      // Alertas de inventario — libros que necesitan reposición
+      // === ALERTAS DE INVENTARIO ===
       libros_stock_bajo: librosStockBajo.map(l => ({
         id:           l.id,
         titulo:       l.titulo,
         autor:        l.autor || 'Sin autor',
         stock_actual: l.stock_actual,
         stock_minimo: l.stock_minimo,
-        faltante:     l.stock_minimo - l.stock_actual  // Cuántas unidades faltan
+        faltante:     l.stock_minimo - l.stock_actual
       })),
 
-      // Totales generales
-      total_libros:   totalLibros[0].total,
-      total_clientes: totalClientes[0].total,
-      alertas_stock:  librosStockBajo.length,   // Cantidad de libros en alerta
-
-      // Datos para la gráfica de barras (ventas por mes)
+      // === DATOS PARA GRÁFICAS ===
       ventas_por_mes: ventasPorMes.map(v => ({
-        mes:      v.mes_label,   // Texto como "Mar 2026"
+        mes:      v.mes_label,
         ventas:   parseInt(v.cantidad) || 0,
         ingresos: parseFloat(v.ingresos) || 0
       })),
 
-      // Datos para la gráfica de torta (distribución por categoría)
       libros_por_categoria: librosPorCategoria.map(c => ({
         categoria: c.categoria,
         total:     parseInt(c.total_libros) || 0
+      })),
+
+      ventas_por_dia_semana: ventasPorDiaSemana.map(d => ({
+        dia:      d.dia_nombre,
+        ventas:   parseInt(d.cantidad) || 0,
+        ingresos: parseFloat(d.ingresos) || 0
+      })),
+
+      // === ACTIVIDAD RECIENTE ===
+      ultimas_ventas: ultimasVentas.map(v => ({
+        id:          v.id,
+        total:       parseFloat(v.total_venta) || 0,
+        metodo_pago: v.metodo_pago,
+        fecha:       v.fecha_venta,
+        cliente:     v.cliente || 'Cliente general',
+        vendedor:    v.vendedor || 'Sistema'
       }))
     };
 
-    // ─────────────────────────────────────────────────
-    // GUARDAR EN CACHÉ Y RESPONDER
-    // ─────────────────────────────────────────────────
-    // Guardamos los datos calculados y el timestamp actual.
-    // La próxima petición en los próximos 60 segundos usará esta caché.
+    // Paso 3: Guardar en caché y responder
     _cache.datos     = datos;
     _cache.timestamp = Date.now();
 

@@ -1,28 +1,27 @@
-/**
- * =====================================================
- * PÁGINA DE GESTIÓN DE PROVEEDORES
- * =====================================================
- * Sistema de Gestión de Inventario - Librería
- * Proyecto SENA - Tecnólogo en ADSO
- *
- * @description Módulo CRUD para la gestión de proveedores.
- * Permite crear, listar, editar y eliminar empresas proveedoras
- * que suministran libros a la librería.
- *
- * @requires react - Hooks useState, useEffect
- * @requires ../services/api - Cliente Axios configurado
- *
- * CARACTERÍSTICAS:
- * - Tabla responsiva con paginación cliente
- * - Modal reutilizable para crear/editar
- * - Validación de campos obligatorios
- * - Manejo seguro de errores
- *
- * @author Equipo de Desarrollo SGI
- * @version 2.0.0
- */
+// =====================================================
+// PÁGINA: GESTIÓN DE PROVEEDORES
+// =====================================================
+//
+// ¿Para qué sirve este archivo?
+//   Permite al administrador gestionar los proveedores de la librería.
+//   Los proveedores son las empresas o personas que nos venden
+//   los libros que ingresamos al inventario.
+//
+// ¿Cómo se conecta con el sistema?
+//   1. Se renderiza en la ruta /proveedores (ver App.jsx)
+//   2. Llama a la API: GET /api/proveedores, POST, PUT, DELETE
+//   3. Los proveedores se usan en el módulo de Movimientos (Kardex):
+//      al registrar una ENTRADA de inventario, se indica de qué
+//      proveedor viene la mercancía.
+//   4. Solo los Administradores pueden acceder a esta página
+//
+// Patrón CRUD: mismo que PaginaAutores y PaginaCategorias,
+//   pero con más campos (NIT, contacto, email, teléfono, dirección)
+//
+// =====================================================
 
 import { useState, useEffect } from 'react';
+// api: cliente HTTP con Axios (incluye token JWT automáticamente)
 import api from '../services/api';
 
 // --- ICONOS SVG INLINE (evita dependencias externas) ---
@@ -45,20 +44,19 @@ const IconoEliminar = () => (
   </svg>
 );
 
-/**
- * Componente principal para la gestión de proveedores.
- * Implementa operaciones CRUD con paginación cliente.
- *
- * @component
- * @returns {JSX.Element} Interfaz de gestión de proveedores
- */
+// =====================================================
+// COMPONENTE PRINCIPAL
+// =====================================================
 const PaginaProveedores = () => {
-  // --- ESTADOS DEL COMPONENTE ---
-  const [proveedores, setProveedores] = useState([]);
-  const [cargando, setCargando] = useState(true);
-  const [error, setError] = useState(null);
-  const [mostrarModal, setMostrarModal] = useState(false);
 
+  // ── ESTADOS DEL COMPONENTE ──
+  const [proveedores, setProveedores] = useState([]);    // Lista de proveedores del backend
+  const [cargando, setCargando] = useState(true);        // Spinner mientras carga
+  const [error, setError] = useState(null);              // Mensajes de error
+  const [mostrarModal, setMostrarModal] = useState(false); // Visibilidad del modal
+
+  // formDatos: datos del formulario (crear o editar)
+  // id=null → crear nuevo | id=número → editar existente
   const [formDatos, setFormDatos] = useState({
     id: null,
     nombre_empresa: '',
@@ -69,28 +67,25 @@ const PaginaProveedores = () => {
     direccion: ''
   });
 
-  // Estado de paginación
+  // ── PAGINACIÓN (5 proveedores por página) ──
   const [paginaActual, setPaginaActual] = useState(1);
   const elementosPorPagina = 5;
 
-  // Calcular datos paginados
+  // Calculamos qué proveedores mostrar en la página actual
   const indiceInicio = (paginaActual - 1) * elementosPorPagina;
   const indiceFin = indiceInicio + elementosPorPagina;
   const proveedoresPaginados = proveedores.slice(indiceInicio, indiceFin);
   const totalPaginas = Math.ceil(proveedores.length / elementosPorPagina);
 
-  // Cargar proveedores al montar el componente
+  // Se ejecuta al montar el componente (primera carga)
   useEffect(() => {
     cargarProveedores();
   }, []);
 
-  /**
-   * Obtiene el listado de proveedores desde el backend.
-   * Maneja el formato de respuesta { exito, datos }.
-   *
-   * @async
-   * @returns {Promise<void>}
-   */
+  // ─────────────────────────────────────────────────────
+  // FUNCIÓN: Cargar proveedores desde la API
+  // ─────────────────────────────────────────────────────
+  // GET /api/proveedores → { exito: true, datos: [...] }
   const cargarProveedores = async () => {
     try {
       setCargando(true);
@@ -109,21 +104,19 @@ const PaginaProveedores = () => {
     }
   };
 
-  /**
-   * Actualiza el estado del formulario cuando cambia un input.
-   * Usa computed property names para manejar cualquier campo.
-   *
-   * @param {React.ChangeEvent<HTMLInputElement>} e - Evento del input
-   */
+  // ── Actualizar un campo del formulario dinámicamente ──
+  // [name] es una "computed property": usa el atributo name del input
+  // como clave del objeto. Así una sola función sirve para todos los campos.
   const manejarCambioInput = (e) => {
     const { name, value } = e.target;
     setFormDatos({ ...formDatos, [name]: value });
   };
 
-  /**
-   * Prepara el modal para crear un nuevo proveedor.
-   * Limpia el formulario y resetea errores.
-   */
+  // ─────────────────────────────────────────────────────
+  // FUNCIONES DEL MODAL
+  // ─────────────────────────────────────────────────────
+
+  // Preparar formulario para CREAR (campos vacíos)
   const abrirModalCrear = () => {
     setFormDatos({
       id: null,
@@ -138,32 +131,22 @@ const PaginaProveedores = () => {
     setMostrarModal(true);
   };
 
-  /**
-   * Prepara el modal para editar un proveedor existente.
-   * Carga los datos del proveedor seleccionado en el formulario.
-   *
-   * @param {Object} proveedor - Datos del proveedor a editar
-   */
+  // Preparar formulario para EDITAR (llenar con datos existentes)
   const abrirModalEditar = (proveedor) => {
     setFormDatos(proveedor);
     setError(null);
     setMostrarModal(true);
   };
 
-  /** Cierra el modal y limpia el estado de error */
+  // Cerrar modal y limpiar errores
   const cerrarModal = () => {
     setMostrarModal(false);
     setError(null);
   };
 
-  /**
-   * Guarda un proveedor (crear o actualizar).
-   * Decide la operación según si existe formDatos.id.
-   *
-   * @async
-   * @param {React.FormEvent} e - Evento del formulario
-   * @returns {Promise<void>}
-   */
+  // ─────────────────────────────────────────────────────
+  // FUNCIÓN: Guardar proveedor (crear o actualizar)
+  // ─────────────────────────────────────────────────────
   const manejarGuardar = async (e) => {
     e.preventDefault();
     setError(null);
@@ -191,14 +174,11 @@ const PaginaProveedores = () => {
     }
   };
 
-  /**
-   * Elimina un proveedor previa confirmación.
-   * Actualiza la lista localmente sin recargar del servidor.
-   *
-   * @async
-   * @param {number} id - ID del proveedor a eliminar
-   * @returns {Promise<void>}
-   */
+  // ─────────────────────────────────────────────────────
+  // FUNCIÓN: Eliminar proveedor (con confirmación)
+  // ─────────────────────────────────────────────────────
+  // Nota: aquí actualizamos la lista localmente con filter()
+  // en vez de recargar del servidor (optimización menor)
   const manejarEliminar = async (id) => {
     if (!window.confirm('¿Estás seguro de eliminar este proveedor?')) return;
 

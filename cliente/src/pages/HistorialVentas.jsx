@@ -203,12 +203,19 @@ const HistorialVentas = () => {
 
     const { venta, items } = detalleVenta;
 
+    // Calcular la altura necesaria antes de crear el documento.
+    // Cada item ocupa ~2 líneas (título + cantidad x precio).
+    // Se suma espacio para encabezado, datos, totales y pie.
+    const alturaBase = 80;  // Encabezado + datos cliente + separadores + totales + pie
+    const alturaPorItem = 9; // ~9mm por cada producto (título + detalle)
+    const alturaDescuento = parseFloat(venta.descuento) > 0 ? 12 : 0;
+    const alturaCalculada = alturaBase + (items.length * alturaPorItem) + alturaDescuento;
+
     // Crear el documento con formato ticket POS (80mm de ancho)
-    // La altura se ajusta al final según el contenido real
     const doc = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
-      format: [80, 200]
+      format: [80, alturaCalculada]
     });
 
     const anchoDoc = 80;
@@ -283,6 +290,13 @@ const HistorialVentas = () => {
 
     separador();
 
+    // Si hay descuento, mostrar subtotal y descuento antes del total
+    if (parseFloat(venta.descuento) > 0) {
+      lineaDer('Subtotal:', `$${formatearNumero(parseFloat(venta.total) + parseFloat(venta.descuento))}`, 8);
+      lineaDer('Descuento:', `-$${formatearNumero(venta.descuento)}`, 8);
+      y += 1;
+    }
+
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.text('TOTAL:', margen, y);
@@ -293,9 +307,6 @@ const HistorialVentas = () => {
 
     lineaCentrada('¡Gracias por su compra!', 8, 'bold');
     lineaCentrada('Vuelva pronto', 7);
-
-    // Ajustar la altura del documento al contenido real (evita espacio en blanco)
-    doc.internal.pageSize.height = y + 10;
 
     // Descargar el PDF en el browser del usuario
     doc.save(`Factura-${String(venta.id).padStart(6, '0')}.pdf`);
@@ -644,6 +655,22 @@ const HistorialVentas = () => {
                         ))}
                       </tbody>
                       <tfoot>
+                        {parseFloat(detalleVenta.venta.descuento) > 0 && (
+                          <>
+                            <tr>
+                              <td colSpan="4" className="text-end">Subtotal:</td>
+                              <td className="text-end">
+                                {formatearPrecio(parseFloat(detalleVenta.venta.total) + parseFloat(detalleVenta.venta.descuento))}
+                              </td>
+                            </tr>
+                            <tr className="text-danger">
+                              <td colSpan="4" className="text-end">Descuento:</td>
+                              <td className="text-end">
+                                -{formatearPrecio(detalleVenta.venta.descuento)}
+                              </td>
+                            </tr>
+                          </>
+                        )}
                         <tr className="table-success">
                           <td colSpan="4" className="text-end fw-bold">TOTAL:</td>
                           <td className="text-end fw-bold fs-6">

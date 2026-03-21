@@ -1,32 +1,32 @@
-/**
- * =====================================================
- * PÁGINA DE GESTIÓN DE CATEGORÍAS
- * =====================================================
- * Sistema de Gestión de Inventario - Librería
- * Proyecto SENA - Tecnólogo en ADSO
- *
- * @description Módulo CRUD para la gestión de categorías.
- * Permite crear, listar, editar y eliminar categorías
- * para clasificar los libros del inventario.
- *
- * @requires react - Hooks useState, useEffect
- * @requires ../services/api - Cliente Axios configurado
- * @requires ../context/AuthContext - Hook de autenticación RBAC
- *
- * CARACTERÍSTICAS:
- * - Control de acceso por permisos (RBAC)
- * - Tabla con paginación cliente (5 elementos)
- * - Modal Bootstrap para crear/editar
- *
- * @author Equipo de Desarrollo SGI
- * @version 2.0.0
- */
+// =====================================================
+// PÁGINA: GESTIÓN DE CATEGORÍAS
+// =====================================================
+//
+// ¿Para qué sirve este archivo?
+//   Permite al administrador gestionar las categorías de los libros
+//   (Ficción, Ciencia, Historia, Poesía, etc.).
+//   Es un módulo CRUD (Crear, Leer, Actualizar, Eliminar).
+//
+// ¿Cómo se conecta con el sistema?
+//   1. Se renderiza en la ruta /categorias (ver App.jsx)
+//   2. Llama a la API: GET /api/categorias, POST, PUT, DELETE
+//   3. Las categorías se asocian a los libros (cada libro tiene
+//      un categoria_id que apunta a esta tabla)
+//   4. El Dashboard usa las categorías para la gráfica de distribución
+//
+// Nota: Este componente sigue el MISMO patrón que PaginaAutores.jsx
+//   (tabla paginada + modal + funciones CRUD). Si entiendes uno,
+//   entiendes ambos.
+//
+// =====================================================
 
 import { useEffect, useState } from 'react';
+// api: cliente HTTP con Axios (incluye token JWT automáticamente)
 import api from '../services/api';
+// useAuth: para verificar los permisos del usuario (RBAC)
 import { useAuth } from '../context/AuthContext';
 
-// --- ICONOS SVG INLINE (evita dependencias externas) ---
+// ── Iconos SVG en línea para los botones de acción ──
 const IconoEditar = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
     <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
@@ -40,43 +40,38 @@ const IconoEliminar = () => (
   </svg>
 );
 
-/**
- * Componente principal para la gestión de categorías.
- * Implementa operaciones CRUD con control de acceso RBAC.
- *
- * @component
- * @returns {JSX.Element} Interfaz de gestión de categorías
- */
+// =====================================================
+// COMPONENTE PRINCIPAL
+// =====================================================
 const PaginaCategorias = () => {
-  // Hook RBAC para verificar permisos del usuario actual
+
+  // ── Verificación de permisos (RBAC) ──
   const { tienePermiso } = useAuth();
 
-  // --- ESTADOS DEL COMPONENTE ---
-  const [categorias, setCategorias] = useState([]);
-  const [cargando, setCargando] = useState(true);
+  // ── ESTADOS ──
+  const [categorias, setCategorias] = useState([]);     // Lista de categorías del backend
+  const [cargando, setCargando] = useState(true);       // Spinner mientras carga
+  // datosCategoria: formulario del modal
+  // id=null → crear nueva | id=número → editar existente
   const [datosCategoria, setDatosCategoria] = useState({ id: null, nombre: '' });
 
-  // Estado de paginación (5 elementos por página)
+  // ── PAGINACIÓN (lado del cliente, 5 por página) ──
   const [paginaActual, setPaginaActual] = useState(1);
   const elementosPorPagina = 5;
 
-  // Cálculos de paginación derivados del estado
+  // Calculamos qué categorías mostrar en la página actual
   const indiceInicio = (paginaActual - 1) * elementosPorPagina;
   const indiceFin = indiceInicio + elementosPorPagina;
   const categoriasPaginadas = categorias.slice(indiceInicio, indiceFin);
   const totalPaginas = Math.ceil(categorias.length / elementosPorPagina);
 
-  /**
-   * Obtiene el listado de categorías desde el backend.
-   * Maneja el formato de respuesta { exito, datos }.
-   *
-   * @async
-   * @returns {Promise<void>}
-   */
+  // ─────────────────────────────────────────────────────
+  // FUNCIÓN: Cargar categorías desde la API
+  // ─────────────────────────────────────────────────────
   const cargarCategorias = async () => {
     try {
+      // GET /api/categorias → { exito: true, datos: [...] }
       const res = await api.get('/categorias');
-      // Extraer datos considerando estructura { exito, datos }
       const categoriasData = res.data.datos || res.data;
       setCategorias(Array.isArray(categoriasData) ? categoriasData : []);
     } catch (error) {
@@ -88,62 +83,52 @@ const PaginaCategorias = () => {
     }
   };
 
-  // Cargar categorías al montar el componente
+  // Se ejecuta al montar el componente (primera carga)
   useEffect(() => { cargarCategorias(); }, []);
 
-  /** Prepara el modal para crear una nueva categoría */
+  // ─────────────────────────────────────────────────────
+  // FUNCIONES DEL MODAL
+  // ─────────────────────────────────────────────────────
+
+  // Preparar formulario para CREAR (campos vacíos)
   const abrirModalNuevo = () => {
     setDatosCategoria({ id: null, nombre: '' });
   };
 
-  /**
-   * Prepara el modal para editar una categoría existente.
-   *
-   * @param {Object} categoria - Datos de la categoría a editar
-   */
+  // Preparar formulario para EDITAR (llenar con datos existentes)
   const abrirModalEditar = (categoria) => {
     setDatosCategoria({ id: categoria.id, nombre: categoria.nombre });
   };
 
-  /**
-   * Guarda una categoría (crear o actualizar).
-   * Cierra el modal automáticamente al completar.
-   *
-   * @async
-   * @param {React.FormEvent} e - Evento del formulario
-   * @returns {Promise<void>}
-   */
+  // ─────────────────────────────────────────────────────
+  // FUNCIÓN: Guardar categoría (crear o actualizar)
+  // ─────────────────────────────────────────────────────
   const handleGuardar = async (e) => {
     e.preventDefault();
     try {
       if (datosCategoria.id) {
-        // Actualizar categoría existente
+        // ACTUALIZAR → PUT /api/categorias/:id
         await api.put(`/categorias/${datosCategoria.id}`, { nombre: datosCategoria.nombre });
         alert('Categoría actualizada correctamente');
       } else {
-        // Crear nueva categoría
+        // CREAR → POST /api/categorias
         await api.post('/categorias', { nombre: datosCategoria.nombre });
         alert('Categoría creada exitosamente');
       }
-      cargarCategorias();
-      // Cerrar modal usando el botón Bootstrap
-      document.getElementById('cerrarModalBtn').click();
+      cargarCategorias();  // Recargar la lista
+      document.getElementById('cerrarModalBtn').click();  // Cerrar modal
     } catch (error) {
       alert(error.response?.data?.error || 'Error al guardar');
     }
   };
 
-  /**
-   * Elimina una categoría previa confirmación del usuario.
-   *
-   * @async
-   * @param {number} id - ID de la categoría a eliminar
-   * @param {string} nombre - Nombre de la categoría (para mensaje)
-   * @returns {Promise<void>}
-   */
+  // ─────────────────────────────────────────────────────
+  // FUNCIÓN: Eliminar categoría (con confirmación)
+  // ─────────────────────────────────────────────────────
   const handleEliminar = async (id, nombre) => {
     if (window.confirm(`¿Eliminar la categoría "${nombre}"?`)) {
       try {
+        // DELETE /api/categorias/:id
         await api.delete(`/categorias/${id}`);
         alert('Categoría eliminada exitosamente');
         cargarCategorias();
@@ -153,8 +138,12 @@ const PaginaCategorias = () => {
     }
   };
 
+  // =====================================================
+  // RENDERIZADO (JSX)
+  // =====================================================
   return (
     <div className="container mt-4">
+      {/* ── Encabezado con título y botón "Nueva Categoría" ── */}
       <div className="module-header mb-4 shadow-sm" style={{ borderRadius: '8px' }}>
         <h2 className="text-white">Gestión de Categorías</h2>
         {tienePermiso('crearCategoria') && (
@@ -164,6 +153,7 @@ const PaginaCategorias = () => {
         )}
       </div>
 
+      {/* ── Tabla de categorías o spinner ── */}
       {cargando ? (
         <div className="text-center"><div className="spinner-border text-primary"></div></div>
       ) : (
@@ -182,6 +172,7 @@ const PaginaCategorias = () => {
                   <td>{categoria.id}</td>
                   <td className="fw-bold">{categoria.nombre}</td>
                   <td className="text-center action-buttons">
+                    {/* Botón editar (solo con permiso) */}
                     {tienePermiso('editarCategoria') && (
                       <button
                         className="btn btn-sm btn-outline-primary me-1"
@@ -193,6 +184,7 @@ const PaginaCategorias = () => {
                         <IconoEditar />
                       </button>
                     )}
+                    {/* Botón eliminar (solo con permiso) */}
                     {tienePermiso('eliminarCategoria') && (
                       <button
                         className="btn btn-sm btn-outline-danger"
@@ -213,7 +205,7 @@ const PaginaCategorias = () => {
         </div>
       )}
 
-      {/* Controles de Paginación */}
+      {/* ── Paginación ── */}
       {!cargando && totalPaginas > 1 && (
         <nav className="d-flex justify-content-center mt-3">
           <ul className="pagination pagination-sm">
@@ -238,7 +230,7 @@ const PaginaCategorias = () => {
         </nav>
       )}
 
-      {/* Modal */}
+      {/* ── Modal de crear/editar categoría ── */}
       <div className="modal fade" id="modalCategoria" tabIndex="-1" aria-hidden="true">
         <div className="modal-dialog modal-fullscreen-sm-down">
           <div className="modal-content">

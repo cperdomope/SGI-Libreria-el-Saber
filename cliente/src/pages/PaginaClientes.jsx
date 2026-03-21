@@ -1,30 +1,34 @@
-/**
- * =====================================================
- * PÁGINA DE GESTIÓN DE CLIENTES
- * =====================================================
- * Sistema de Gestión de Inventario - Librería
- * Proyecto SENA - Tecnólogo en ADSO
- *
- * @description Módulo CRUD para la gestión de clientes.
- * Permite registrar, listar, editar y eliminar clientes
- * que realizan compras en la librería.
- *
- * @requires react - Hooks useState, useEffect
- * @requires ../services/api - Cliente Axios configurado
- * @requires ../context/AuthContext - Hook de autenticación RBAC
- *
- * CARACTERÍSTICAS:
- * - Control de acceso por permisos (RBAC)
- * - Tabla responsiva con paginación cliente
- * - Modal reutilizable para crear/editar
- * - Validación de documento único
- *
- * @author Equipo de Desarrollo SGI
- * @version 2.0.0
- */
+// =====================================================
+// PÁGINA: GESTIÓN DE CLIENTES
+// =====================================================
+//
+// ¿Para qué sirve este archivo?
+//   Permite gestionar los clientes de la librería.
+//   Es un módulo CRUD (Crear, Leer, Actualizar, Eliminar)
+//   con las siguientes funcionalidades:
+//     - Ver la lista de clientes en una tabla con buscador
+//     - Registrar un nuevo cliente desde un modal
+//     - Editar los datos de un cliente existente
+//     - Eliminar un cliente (con confirmación)
+//
+// ¿Cómo se conecta con el sistema?
+//   1. Se renderiza en la ruta /clientes (ver App.jsx)
+//   2. Llama a la API: GET /api/clientes, POST, PUT, DELETE
+//   3. Los clientes se asocian a las ventas (cada venta tiene
+//      un cliente_id que identifica quién compró)
+//   4. El Dashboard muestra los "mejores clientes" usando estos datos
+//
+// ¿Qué diferencia tiene con PaginaAutores/PaginaCategorias?
+//   - Tiene más campos (documento, email, teléfono, dirección)
+//   - Incluye un buscador con filtro usando useMemo
+//   - El modal es más complejo (más campos de formulario)
+//
+// =====================================================
 
 import { useState, useEffect, useMemo } from 'react';
+// api: cliente HTTP con Axios (incluye token JWT automáticamente)
 import api from '../services/api';
+// useAuth: para verificar permisos RBAC del usuario
 import { useAuth } from '../context/AuthContext';
 
 // --- ICONOS SVG INLINE (evita dependencias externas) ---
@@ -47,24 +51,22 @@ const IconoEliminar = () => (
   </svg>
 );
 
-/**
- * Componente principal para la gestión de clientes.
- * Implementa operaciones CRUD con control de acceso RBAC.
- *
- * @component
- * @returns {JSX.Element} Interfaz de gestión de clientes
- */
+// =====================================================
+// COMPONENTE PRINCIPAL
+// =====================================================
 const PaginaClientes = () => {
-  // Hook RBAC para verificar permisos del usuario actual
+
+  // ── Verificación de permisos (RBAC) ──
   const { tienePermiso } = useAuth();
 
-  // --- ESTADOS DEL COMPONENTE ---
-  const [clientes, setClientes] = useState([]);
-  const [cargando, setCargando] = useState(true);
-  const [error, setError] = useState(null);
-  const [mostrarModal, setMostrarModal] = useState(false);
-  
-  // Estado para el formulario (Crear/Editar)
+  // ── ESTADOS DEL COMPONENTE ──
+  const [clientes, setClientes] = useState([]);        // Lista de clientes del backend
+  const [cargando, setCargando] = useState(true);       // Spinner mientras carga
+  const [error, setError] = useState(null);             // Mensajes de error
+  const [mostrarModal, setMostrarModal] = useState(false); // Controla visibilidad del modal
+
+  // formDatos: datos del formulario del modal (crear o editar)
+  // Si id es null → crear nuevo | Si id tiene valor → editar existente
   const [formDatos, setFormDatos] = useState({
     id: null,
     nombre_completo: '',
@@ -74,14 +76,19 @@ const PaginaClientes = () => {
     direccion: ''
   });
 
-  // Búsqueda
+  // ── BUSCADOR ──
+  // Permite buscar clientes por nombre o documento sin recargar la página
   const [busqueda, setBusqueda] = useState('');
 
-  // Estado de paginación
+  // ── PAGINACIÓN (5 clientes por página) ──
   const [paginaActual, setPaginaActual] = useState(1);
   const elementosPorPagina = 5;
 
-  // Filtrar clientes por nombre o documento
+  // ── FILTRADO CON useMemo ──
+  // useMemo memoriza el resultado del filtro para no recalcular
+  // en cada render (optimización de rendimiento).
+  // Si no hay búsqueda, devuelve todos los clientes.
+  // Si hay búsqueda, filtra por nombre o documento.
   const clientesFiltrados = useMemo(() => {
     if (!busqueda.trim()) return clientes;
     const termino = busqueda.toLowerCase().trim();
@@ -91,24 +98,22 @@ const PaginaClientes = () => {
     );
   }, [clientes, busqueda]);
 
-  // Calcular datos paginados (sobre resultados filtrados)
+  // Calcular qué clientes mostrar en la página actual
+  // (se aplica SOBRE los resultados filtrados, no sobre todos)
   const indiceInicio = (paginaActual - 1) * elementosPorPagina;
   const indiceFin = indiceInicio + elementosPorPagina;
   const clientesPaginados = clientesFiltrados.slice(indiceInicio, indiceFin);
   const totalPaginas = Math.ceil(clientesFiltrados.length / elementosPorPagina);
 
-  // Cargar clientes al montar el componente
+  // Se ejecuta al montar el componente (primera carga de la página)
   useEffect(() => {
     cargarClientes();
   }, []);
 
-  /**
-   * Obtiene el listado de clientes desde el backend.
-   * Maneja el formato de respuesta { exito, datos }.
-   *
-   * @async
-   * @returns {Promise<void>}
-   */
+  // ─────────────────────────────────────────────────────
+  // FUNCIÓN: Cargar clientes desde la API
+  // ─────────────────────────────────────────────────────
+  // GET /api/clientes → { exito: true, datos: [...] }
   const cargarClientes = async () => {
     try {
       setCargando(true);
@@ -126,20 +131,20 @@ const PaginaClientes = () => {
     }
   };
 
-  /**
-   * Actualiza el estado del formulario cuando cambia un input.
-   *
-   * @param {React.ChangeEvent<HTMLInputElement>} e - Evento del input
-   */
+  // ── Actualizar un campo del formulario ──
+  // Usa [name] (computed property) para actualizar dinámicamente
+  // cualquier campo del formulario con una sola función.
+  // Ej: si name="email" y value="test@mail.com" → { ...formDatos, email: "test@mail.com" }
   const manejarCambioInput = (e) => {
     const { name, value } = e.target;
     setFormDatos({ ...formDatos, [name]: value });
   };
 
-  /**
-   * Prepara el modal para crear un nuevo cliente.
-   * Limpia el formulario y resetea errores.
-   */
+  // ─────────────────────────────────────────────────────
+  // FUNCIONES DEL MODAL
+  // ─────────────────────────────────────────────────────
+
+  // Preparar formulario para CREAR un cliente nuevo (campos vacíos)
   const abrirModalCrear = () => {
     setFormDatos({
       id: null,
@@ -153,31 +158,24 @@ const PaginaClientes = () => {
     setMostrarModal(true);
   };
 
-  /**
-   * Prepara el modal para editar un cliente existente.
-   *
-   * @param {Object} cliente - Datos del cliente a editar
-   */
+  // Preparar formulario para EDITAR (llenar con datos del cliente seleccionado)
   const abrirModalEditar = (cliente) => {
     setFormDatos(cliente);
     setError(null);
     setMostrarModal(true);
   };
 
-  /** Cierra el modal y limpia el estado de error */
+  // Cerrar modal y limpiar errores
   const cerrarModal = () => {
     setMostrarModal(false);
     setError(null);
   };
 
-  /**
-   * Guarda un cliente (crear o actualizar).
-   * Valida campos obligatorios antes de enviar.
-   *
-   * @async
-   * @param {React.FormEvent} e - Evento del formulario
-   * @returns {Promise<void>}
-   */
+  // ─────────────────────────────────────────────────────
+  // FUNCIÓN: Guardar cliente (crear o actualizar)
+  // ─────────────────────────────────────────────────────
+  // Si formDatos.id existe → PUT (actualizar)
+  // Si formDatos.id es null → POST (crear nuevo)
   const manejarGuardar = async (e) => {
     e.preventDefault();
     setError(null);
@@ -205,14 +203,9 @@ const PaginaClientes = () => {
     }
   };
 
-  /**
-   * Elimina un cliente previa confirmación del usuario.
-   * Recarga la lista completa tras eliminar.
-   *
-   * @async
-   * @param {number} id - ID del cliente a eliminar
-   * @returns {Promise<void>}
-   */
+  // ─────────────────────────────────────────────────────
+  // FUNCIÓN: Eliminar cliente (con confirmación)
+  // ─────────────────────────────────────────────────────
   const manejarEliminar = async (id) => {
     if (!window.confirm('¿Estás seguro de eliminar este cliente? Esta acción no se puede deshacer.')) return;
 

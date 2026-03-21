@@ -1,51 +1,64 @@
-/**
- * =====================================================
- * PÁGINA DE INVENTARIO - GESTIÓN DE LIBROS
- * =====================================================
- * Sistema de Gestión de Inventario - Librería
- * Proyecto SENA - Tecnólogo en ADSO
- *
- * @description CRUD completo para la gestión del catálogo
- * de libros con soporte de imágenes de portada (multer).
- *
- * FUNCIONALIDADES:
- * - Listado paginado de libros con thumbnail de portada
- * - Crear nuevo libro con imagen de portada (opcional)
- * - Editar libro y reemplazar portada
- * - Eliminar libro (la imagen se borra del servidor)
- * - Indicador visual de stock bajo
- * - Búsqueda por título o ISBN
- * - Exportar inventario a Excel
- *
- * ANTE UN JURADO:
- * "La portada se sube desde el formulario, multer la
- *  almacena en uploads/portadas/ con nombre único,
- *  y el nombre del archivo queda guardado en BD.
- *  Al editar, si se sube nueva imagen, la anterior
- *  se elimina automáticamente del disco."
- *
- * @author Equipo de Desarrollo SGI
- * @version 3.0.0
- */
+// =====================================================
+// PÁGINA: INVENTARIO - GESTIÓN DE LIBROS
+// =====================================================
+//
+// ¿Para qué sirve este archivo?
+//   Es el módulo CRUD principal del sistema. Permite gestionar
+//   el catálogo completo de libros de la librería:
+//   - Ver todos los libros en una tabla paginada con portada
+//   - Crear un nuevo libro (con imagen de portada opcional)
+//   - Editar un libro existente (puede cambiar la portada)
+//   - Eliminar un libro (la imagen se borra del servidor)
+//   - Buscar por título o ISBN
+//   - Exportar el inventario a Excel (.xlsx)
+//   - Indicador visual de stock bajo (badge rojo)
+//
+// ¿Cómo se conecta con el sistema?
+//   1. Se renderiza en la ruta /inventario (ver App.jsx)
+//   2. Llama a la API:
+//      - GET /api/libros → listar libros
+//      - GET /api/autores → para el select de autores
+//      - GET /api/categorias → para el select de categorías
+//      - POST /api/libros → crear (con o sin imagen)
+//      - PUT /api/libros/:id → editar (con o sin imagen)
+//      - DELETE /api/libros/:id → eliminar
+//   3. Las imágenes se suben con multer (multipart/form-data)
+//      y se guardan en servidor/uploads/portadas/
+//   4. Los movimientos (Movimientos.jsx) actualizan el stock
+//   5. Las ventas (PaginaVentas.jsx) también afectan el stock
+//
+// Conceptos clave para el jurado:
+//   - FormData: objeto especial para enviar archivos al servidor
+//   - multer: middleware del backend que recibe y guarda las imágenes
+//   - useMemo: optimiza el filtrado (no recalcula si no cambian los datos)
+//   - useCallback: evita que las funciones se recreen en cada render
+//   - usePaginacion: hook personalizado que maneja la paginación
+//
+// =====================================================
 
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+// api: cliente HTTP con Axios (incluye token JWT automáticamente)
 import api from '../services/api';
+// useAuth: para verificar los permisos del usuario (RBAC)
 import { useAuth } from '../context/AuthContext';
+// usePaginacion: hook personalizado que calcula qué elementos mostrar
+// según la página actual (ver hooks/usePaginacion.js)
 import usePaginacion from '../hooks/usePaginacion';
+// XLSX: librería para generar archivos Excel desde JavaScript
 import * as XLSX from 'xlsx';
 
 // =====================================================
-// URL BASE PARA IMÁGENES
-// Construida a partir de VITE_API_URL (sin el /api)
+// URL BASE PARA IMÁGENES DE PORTADA
 // =====================================================
+// Construimos la URL donde están las imágenes.
+// Si VITE_API_URL es "http://localhost:3000/api",
+// quitamos "/api" y agregamos "/uploads/portadas"
+// Resultado: "http://localhost:3000/uploads/portadas"
 
 const URL_PORTADAS = (import.meta.env.VITE_API_URL || 'http://localhost:3000/api')
   .replace('/api', '') + '/uploads/portadas';
 
-// =====================================================
-// ICONOS SVG (Bootstrap Icons - MIT License)
-// =====================================================
-
+// ── Iconos SVG en línea para los botones de acción ──
 const IconoEditar = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
     <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
@@ -63,23 +76,26 @@ const IconoEliminar = () => (
 // CONFIGURACIÓN
 // =====================================================
 
+// Cuántos libros mostrar por página en la tabla
 const ELEMENTOS_POR_PAGINA = 5;
 
+// Valores por defecto del formulario de crear/editar libro
 const LIBRO_INICIAL = {
-  id: null,
-  isbn: '',
-  titulo: '',
-  autor_id: '',
-  categoria_id: '',
-  precio_venta: '',
-  stock_minimo: 5,
-  portada: ''
+  id: null,           // null = crear nuevo, número = editar existente
+  isbn: '',           // Código ISBN del libro
+  titulo: '',         // Título del libro
+  autor_id: '',       // ID del autor (select)
+  categoria_id: '',   // ID de la categoría (select)
+  precio_venta: '',   // Precio de venta al público
+  stock_minimo: 5,    // Umbral para alerta de stock bajo
+  portada: ''         // Nombre del archivo de imagen (si tiene)
 };
 
 // =====================================================
-// COMPONENTE THUMBNAIL DE PORTADA
-// Muestra la imagen o un placeholder si no hay
+// COMPONENTE: Thumbnail de portada
 // =====================================================
+// Muestra una miniatura de la portada del libro en la tabla.
+// Si el libro no tiene imagen, muestra un placeholder gris.
 
 const ThumbnailPortada = ({ portada, titulo }) => {
   if (!portada) {
@@ -112,31 +128,37 @@ const ThumbnailPortada = ({ portada, titulo }) => {
 // =====================================================
 
 const Inventario = () => {
+  // ── Verificación de permisos (RBAC) ──
   const { tienePermiso } = useAuth();
+
+  // useRef para el botón de cerrar modal (alternativa a document.getElementById)
   const cerrarModalRef = useRef(null);
 
-  // ── Datos del catálogo ──
-  const [libros, setLibros]       = useState([]);
-  const [autores, setAutores]     = useState([]);
-  const [categorias, setCategorias] = useState([]);
-  const [cargando, setCargando]   = useState(true);
+  // ── ESTADOS: Datos del catálogo (vienen de la BD) ──
+  const [libros, setLibros]       = useState([]);     // Lista de todos los libros
+  const [autores, setAutores]     = useState([]);     // Lista de autores (para el select)
+  const [categorias, setCategorias] = useState([]);   // Lista de categorías (para el select)
+  const [cargando, setCargando]   = useState(true);   // Spinner mientras carga
 
-  // ── Formulario (crear/editar) ──
+  // ── ESTADO: Formulario del modal (crear/editar) ──
   const [datosLibro, setDatosLibro] = useState(LIBRO_INICIAL);
 
-  // ── Imagen de portada ──
-  const [portadaFile, setPortadaFile]       = useState(null);   // File a subir
-  const [portadaPreview, setPortadaPreview] = useState(null);   // URL temporal
+  // ── ESTADOS: Imagen de portada ──
+  const [portadaFile, setPortadaFile]       = useState(null);   // El archivo seleccionado
+  const [portadaPreview, setPortadaPreview] = useState(null);   // URL temporal para preview
 
-  // ── Búsqueda y paginación ──
+  // ── ESTADO: Búsqueda ──
   const [busqueda, setBusqueda] = useState('');
 
   // ─────────────────────────────────────────────────
-  // FILTRADO Y PAGINACIÓN
+  // FILTRADO CON useMemo
   // ─────────────────────────────────────────────────
+  // useMemo memoriza el resultado del filtrado.
+  // Solo recalcula cuando cambian 'libros' o 'busqueda'.
+  // Esto evita filtrar en cada render (optimización).
 
   const librosFiltrados = useMemo(() => {
-    if (!busqueda.trim()) return libros;
+    if (!busqueda.trim()) return libros; // Sin búsqueda, devolver todos
     const termino = busqueda.toLowerCase().trim();
     return libros.filter((libro) =>
       libro.titulo?.toLowerCase().includes(termino) ||
@@ -144,32 +166,40 @@ const Inventario = () => {
     );
   }, [libros, busqueda]);
 
+  // ── PAGINACIÓN con hook personalizado ──
+  // usePaginacion recibe el array filtrado y cuántos por página,
+  // y devuelve los datos de la página actual + funciones de navegación
   const {
-    datosPaginados: librosPaginados,
-    paginaActual,
-    totalPaginas,
-    irAPagina,
-    paginaAnterior,
-    paginaSiguiente,
-    resetear: resetPagina
+    datosPaginados: librosPaginados,  // Libros de la página actual
+    paginaActual,                      // Número de página actual
+    totalPaginas,                      // Total de páginas
+    irAPagina,                         // Función: ir a página N
+    paginaAnterior,                    // Función: ir a página anterior
+    paginaSiguiente,                   // Función: ir a página siguiente
+    resetear: resetPagina              // Función: volver a página 1
   } = usePaginacion(librosFiltrados, ELEMENTOS_POR_PAGINA);
 
   // ─────────────────────────────────────────────────
-  // CARGA DE DATOS
+  // FUNCIÓN: Cargar datos iniciales
   // ─────────────────────────────────────────────────
+  // Trae libros, autores y categorías EN PARALELO con Promise.all.
+  // useCallback evita que esta función se recree en cada render.
 
   const cargarDatos = useCallback(async () => {
     try {
+      // Promise.all ejecuta las 3 peticiones al mismo tiempo
       const [resLibros, resAutores, resCategorias] = await Promise.all([
-        api.get('/libros'),
-        api.get('/autores'),
-        api.get('/categorias')
+        api.get('/libros'),       // GET /api/libros
+        api.get('/autores'),      // GET /api/autores
+        api.get('/categorias')    // GET /api/categorias
       ]);
 
+      // Extraemos los arrays de las respuestas
       const librosData     = resLibros.data.datos     || resLibros.data;
       const autoresData    = resAutores.data.datos    || resAutores.data;
       const categoriasData = resCategorias.data.datos || resCategorias.data;
 
+      // Guardamos en los estados (solo si son arrays válidos)
       if (Array.isArray(librosData))     setLibros(librosData);
       if (Array.isArray(autoresData))    setAutores(autoresData);
       if (Array.isArray(categoriasData)) setCategorias(categoriasData);
@@ -180,29 +210,35 @@ const Inventario = () => {
     }
   }, []);
 
+  // ── useEffect: Se ejecuta al montar el componente ──
   useEffect(() => {
     cargarDatos();
   }, [cargarDatos]);
 
   // ─────────────────────────────────────────────────
-  // GESTIÓN DEL MODAL
+  // FUNCIONES DEL MODAL (Crear / Editar)
   // ─────────────────────────────────────────────────
 
+  // Limpia el estado de la imagen (libera la URL temporal)
   const limpiarPortada = () => {
+    // URL.revokeObjectURL libera la memoria de la URL temporal
     if (portadaPreview) URL.revokeObjectURL(portadaPreview);
     setPortadaFile(null);
     setPortadaPreview(null);
   };
 
+  // Preparar formulario para CREAR un libro nuevo
   const abrirModalNuevo = () => {
     setDatosLibro({
       ...LIBRO_INICIAL,
+      // Pre-seleccionamos el primer autor y categoría si existen
       autor_id:     autores[0]?.id    || '',
       categoria_id: categorias[0]?.id || ''
     });
     limpiarPortada();
   };
 
+  // Preparar formulario para EDITAR un libro existente
   const abrirModalEditar = (libro) => {
     setDatosLibro({
       id:           libro.id,
@@ -218,28 +254,34 @@ const Inventario = () => {
   };
 
   // ─────────────────────────────────────────────────
-  // MANEJADORES
+  // MANEJADORES DE EVENTOS
   // ─────────────────────────────────────────────────
 
+  // handleChange: actualiza el campo del formulario que cambió
+  // useCallback evita que esta función se recree innecesariamente
   const handleChange = useCallback((e) => {
     const { name, value } = e.target;
     setDatosLibro(prev => ({ ...prev, [name]: value }));
   }, []);
 
+  // handleFileChange: cuando el usuario selecciona una imagen
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (!file) { limpiarPortada(); return; }
-    // Revocar URL anterior para evitar memory leak
+    // Liberar URL anterior para evitar fugas de memoria (memory leak)
     if (portadaPreview) URL.revokeObjectURL(portadaPreview);
     setPortadaFile(file);
+    // URL.createObjectURL crea una URL temporal para previsualizar
     setPortadaPreview(URL.createObjectURL(file));
   };
 
-  /**
-   * Guarda el libro con o sin imagen.
-   * - Con imagen: FormData (multipart/form-data) → multer en backend
-   * - Sin imagen: JSON normal → express.json() en backend
-   */
+  // ─────────────────────────────────────────────────
+  // FUNCIÓN: Guardar libro (crear o actualizar)
+  // ─────────────────────────────────────────────────
+  // Hay 2 formas de enviar datos al backend:
+  //   1. CON imagen → FormData (multipart/form-data) → multer lo procesa
+  //   2. SIN imagen → JSON normal → express.json() lo procesa
+
   const handleGuardar = async (e) => {
     e.preventDefault();
 
@@ -247,7 +289,9 @@ const Inventario = () => {
       let peticion;
 
       if (portadaFile) {
-        // ── Subida con imagen: usar FormData ──
+        // ── CON IMAGEN: usar FormData ──
+        // FormData es un objeto especial que permite enviar archivos
+        // junto con datos de texto en la misma petición HTTP
         const formData = new FormData();
         formData.append('isbn',         datosLibro.isbn         || '');
         formData.append('titulo',       datosLibro.titulo);
@@ -255,25 +299,27 @@ const Inventario = () => {
         formData.append('categoria_id', datosLibro.categoria_id || '');
         formData.append('precio_venta', datosLibro.precio_venta);
         formData.append('stock_minimo', datosLibro.stock_minimo || 5);
-        formData.append('portada', portadaFile); // campo que multer lee
+        formData.append('portada', portadaFile); // El archivo de imagen
 
+        // Indicamos al servidor que es multipart/form-data
         const config = { headers: { 'Content-Type': 'multipart/form-data' } };
 
+        // Si tiene ID → PUT (editar), si no → POST (crear)
         peticion = datosLibro.id
           ? api.put(`/libros/${datosLibro.id}`, formData, config)
           : api.post('/libros', formData, config);
       } else {
-        // ── Sin imagen: JSON normal ──
+        // ── SIN IMAGEN: JSON normal ──
         peticion = datosLibro.id
           ? api.put(`/libros/${datosLibro.id}`, datosLibro)
           : api.post('/libros', datosLibro);
       }
 
-      await peticion;
+      await peticion; // Esperamos la respuesta del servidor
       alert(datosLibro.id ? 'Libro actualizado correctamente' : 'Libro creado con éxito');
 
-      cargarDatos();
-      cerrarModalRef.current?.click();
+      cargarDatos(); // Recargamos la lista
+      cerrarModalRef.current?.click(); // Cerramos el modal
 
     } catch (error) {
       if (import.meta.env.DEV) console.error('[Inventario] Error al guardar:', error);
@@ -281,29 +327,34 @@ const Inventario = () => {
     }
   };
 
+  // ─────────────────────────────────────────────────
+  // FUNCIÓN: Eliminar libro (con confirmación)
+  // ─────────────────────────────────────────────────
+
   const handleEliminar = async (id, titulo) => {
     if (!window.confirm(`¿Borrar "${titulo}"?`)) return;
 
     try {
-      await api.delete(`/libros/${id}`);
-      cargarDatos();
+      await api.delete(`/libros/${id}`); // DELETE /api/libros/:id
+      cargarDatos(); // Recargamos la lista
     } catch (error) {
       if (import.meta.env.DEV) console.error('[Inventario] Error al eliminar:', error);
       alert(error.response?.data?.mensaje || error.response?.data?.error || 'Error al eliminar');
     }
   };
 
-  // ─────────────────────────────────────────────────
-  // RENDER
-  // ─────────────────────────────────────────────────
+  // =====================================================
+  // RENDERIZADO (JSX)
+  // =====================================================
 
   return (
     <div className="container mt-4">
 
-      {/* ── ENCABEZADO ── */}
+      {/* ── ENCABEZADO con título, botón crear y botón exportar ── */}
       <div className="module-header mb-3 shadow-sm" style={{ borderRadius: '8px' }}>
         <h2 className="text-white">Inventario Actual</h2>
         <div className="d-flex gap-2">
+          {/* Botón "Nuevo Libro" (solo con permiso) */}
           {tienePermiso('crearLibro') && (
             <button
               className="btn btn-light btn-sm"
@@ -314,9 +365,11 @@ const Inventario = () => {
               + Nuevo Libro
             </button>
           )}
+          {/* Botón "Exportar Excel" → genera archivo .xlsx con XLSX */}
           <button
             className="btn btn-outline-light btn-sm"
             onClick={() => {
+              // Transformamos los datos a un formato legible para Excel
               const datos = librosFiltrados.map((l) => ({
                 'ISBN':         l.isbn,
                 'Título':       l.titulo,
@@ -326,6 +379,7 @@ const Inventario = () => {
                 'Stock Actual': l.stock_actual || 0,
                 'Stock Mínimo': l.stock_minimo || 0
               }));
+              // XLSX genera la hoja de cálculo y la descarga
               const hoja  = XLSX.utils.json_to_sheet(datos);
               const libro = XLSX.utils.book_new();
               XLSX.utils.book_append_sheet(libro, hoja, 'Inventario');
@@ -338,7 +392,7 @@ const Inventario = () => {
         </div>
       </div>
 
-      {/* ── BUSCADOR ── */}
+      {/* ── BUSCADOR (filtra por título o ISBN en tiempo real) ── */}
       <div className="mb-3">
         <input
           type="text"
@@ -354,7 +408,7 @@ const Inventario = () => {
         )}
       </div>
 
-      {/* ── TABLA DE LIBROS ── */}
+      {/* ── TABLA DE LIBROS (o spinner si está cargando) ── */}
       {cargando ? (
         <div className="text-center">
           <div className="spinner-border text-primary" role="status">
@@ -379,6 +433,7 @@ const Inventario = () => {
             <tbody>
               {librosPaginados.map((libro) => (
                 <tr key={libro.id}>
+                  {/* Miniatura de la portada */}
                   <td className="text-center">
                     <ThumbnailPortada portada={libro.portada} titulo={libro.titulo} />
                   </td>
@@ -388,7 +443,9 @@ const Inventario = () => {
                   <td>
                     <span className="badge bg-secondary">{libro.categoria || 'Gral'}</span>
                   </td>
+                  {/* Precio formateado en pesos colombianos */}
                   <td>${new Intl.NumberFormat('es-CO').format(libro.precio_venta || 0)}</td>
+                  {/* Stock: badge ROJO si está bajo el mínimo, VERDE si está bien */}
                   <td>
                     <span className={`badge ${
                       (libro.stock_actual || 0) <= libro.stock_minimo ? 'bg-danger' : 'bg-success'
@@ -396,6 +453,7 @@ const Inventario = () => {
                       {libro.stock_actual || 0}
                     </span>
                   </td>
+                  {/* Botones de acción (editar/eliminar según permisos) */}
                   <td className="text-center action-buttons">
                     {tienePermiso('editarLibro') && (
                       <button
@@ -428,7 +486,7 @@ const Inventario = () => {
         </div>
       )}
 
-      {/* ── PAGINACIÓN ── */}
+      {/* ── PAGINACIÓN (solo si hay más de 1 página) ── */}
       {!cargando && totalPaginas > 1 && (
         <nav className="d-flex justify-content-center mt-3" aria-label="Paginación de inventario">
           <ul className="pagination pagination-sm">
@@ -451,7 +509,9 @@ const Inventario = () => {
         </nav>
       )}
 
-      {/* ── MODAL CREAR / EDITAR ── */}
+      {/* ══════════════════════════════════════════════════
+          MODAL: Crear o Editar Libro
+          ══════════════════════════════════════════════════ */}
       <div className="modal fade" id="modalLibro" tabIndex="-1" aria-hidden="true">
         <div className="modal-dialog modal-fullscreen-sm-down">
           <div className="modal-content">
@@ -470,16 +530,19 @@ const Inventario = () => {
             <div className="modal-body">
               <form onSubmit={handleGuardar}>
 
+                {/* Campo ISBN */}
                 <div className="mb-3">
                   <label className="form-label">ISBN (Código):</label>
                   <input type="text" className="form-control" name="isbn" required value={datosLibro.isbn} onChange={handleChange} />
                 </div>
 
+                {/* Campo Título */}
                 <div className="mb-3">
                   <label className="form-label">Título:</label>
                   <input type="text" className="form-control" name="titulo" required value={datosLibro.titulo} onChange={handleChange} />
                 </div>
 
+                {/* Precio y Stock Mínimo (en la misma fila) */}
                 <div className="row">
                   <div className="col-6 mb-3">
                     <label className="form-label">Precio Venta:</label>
@@ -491,6 +554,7 @@ const Inventario = () => {
                   </div>
                 </div>
 
+                {/* Select de Autor */}
                 <div className="mb-3">
                   <label className="form-label">Autor:</label>
                   <select className="form-select" name="autor_id" value={datosLibro.autor_id} onChange={handleChange} required>
@@ -501,6 +565,7 @@ const Inventario = () => {
                   </select>
                 </div>
 
+                {/* Select de Categoría */}
                 <div className="mb-3">
                   <label className="form-label">Categoría:</label>
                   <select className="form-select" name="categoria_id" value={datosLibro.categoria_id} onChange={handleChange} required>
@@ -511,14 +576,14 @@ const Inventario = () => {
                   </select>
                 </div>
 
-                {/* ── PORTADA ── */}
+                {/* ── CAMPO DE PORTADA (imagen opcional) ── */}
                 <div className="mb-3">
                   <label className="form-label">
                     Portada{' '}
                     <span className="text-muted fw-normal small">(opcional, máx. 2 MB — JPG, PNG, WEBP)</span>
                   </label>
 
-                  {/* Portada actual en modo edición */}
+                  {/* Si estamos editando y el libro ya tiene portada, la mostramos */}
                   {datosLibro.id && datosLibro.portada && !portadaPreview && (
                     <div className="mb-2 d-flex align-items-center gap-2">
                       <img
@@ -530,7 +595,7 @@ const Inventario = () => {
                     </div>
                   )}
 
-                  {/* Preview de nueva imagen seleccionada */}
+                  {/* Preview de la nueva imagen seleccionada */}
                   {portadaPreview && (
                     <div className="mb-2 d-flex align-items-center gap-2">
                       <img
@@ -542,6 +607,7 @@ const Inventario = () => {
                     </div>
                   )}
 
+                  {/* Input de tipo file para seleccionar la imagen */}
                   <input
                     type="file"
                     className="form-control"
@@ -550,6 +616,7 @@ const Inventario = () => {
                   />
                 </div>
 
+                {/* Botón de envío */}
                 <div className="d-grid">
                   <button type="submit" className="btn btn-primary">
                     {datosLibro.id ? 'Guardar Cambios' : 'Crear Libro'}

@@ -5,526 +5,401 @@ Proyecto de grado — SENA, Tecnólogo en Análisis y Desarrollo de Software (AD
 
 ---
 
-## Descripción General
+## ¿Qué es este proyecto?
 
-Aplicación web full-stack que digitaliza la operación completa de una librería: gestión de inventario, registro de ventas, control de movimientos (kardex), administración de clientes, proveedores, autores y categorías. Incluye panel de estadísticas con gráficas en tiempo real y control de acceso por roles.
+Es una aplicación web que hicimos para ayudar a una librería a manejar todo su negocio desde el computador o el celular. Básicamente, en vez de llevar el inventario en cuadernos o en Excel, con este sistema se puede:
 
----
+- Llevar el control de los libros que hay en la tienda (inventario)
+- Registrar ventas y generar tickets en PDF
+- Saber qué libros se están acabando (alertas de stock bajo)
+- Manejar clientes, proveedores, autores y categorías
+- Ver estadísticas del negocio con gráficas
+- Controlar quién puede hacer qué según su rol (Administrador o Vendedor)
 
-## Tecnologías
-
-| Capa | Tecnología | Versión |
-|------|-----------|---------|
-| Frontend | React + Vite | 19.2 / 7.2 |
-| Estilos | Bootstrap | 5.3.8 |
-| Enrutamiento | React Router DOM | 7.9.6 |
-| HTTP Client | Axios | 1.13.2 |
-| Formularios | react-hook-form | 7.71.2 |
-| Gráficas | Recharts | 3.8.0 |
-| Exportación PDF | jsPDF | 4.2.0 |
-| Exportación Excel | xlsx | 0.18.5 |
-| Backend | Node.js + Express | 5 |
-| Base de datos | MySQL 8 | local o Aiven Cloud |
-| Autenticación | JWT + bcrypt | — |
-| Subida de archivos | Multer | — |
-| Compresión HTTP | compression | — |
-| Logging HTTP | morgan | — |
-| Proceso en producción | PM2 | — |
-| Pruebas | Jest + Supertest | — |
+Todo esto funciona desde el navegador, no necesita instalar nada en el computador del usuario.
 
 ---
 
-## Arquitectura de Despliegue
+## ¿Cómo funciona el sistema? (Paso a paso)
+
+### 1. Iniciar sesión
+El usuario entra a la página de login, escribe su correo y contraseña. Si los datos son correctos, el sistema lo deja entrar y le muestra las opciones según su rol. Si se equivoca 3 veces seguidas, la cuenta se bloquea por seguridad.
+
+### 2. Navegación
+Una vez adentro, hay una barra de navegación en la parte de arriba con todas las secciones. En celulares se convierte en un menú tipo hamburguesa. El Administrador ve todas las opciones, el Vendedor solo ve las que le corresponden.
+
+### 3. Dashboard (solo Administrador)
+Es la página de inicio del admin. Muestra tarjetas con información rápida: cuántas ventas hubo hoy, cuánto se vendió en el mes, cuántos libros hay y cuáles tienen stock bajo. También tiene gráficas de barras y de torta para ver las ventas de los últimos meses y las categorías más populares.
+
+### 4. Inventario
+Aquí se ven todos los libros con su imagen, título, autor, precio y cuántos quedan. Se pueden buscar libros escribiendo en un buscador. El Admin puede agregar libros nuevos, editarlos o eliminarlos. El Vendedor solo puede ver la lista.
+
+### 5. Movimientos (Kardex)
+Cuando llegan libros nuevos del proveedor, se registra una ENTRADA. Si se sacan libros por alguna razón que no sea venta, se registra una SALIDA. El sistema actualiza el stock automáticamente y guarda un historial de todos los movimientos.
+
+### 6. Ventas
+Es como una caja registradora digital. Se busca el cliente, se agregan los libros al carrito, se elige el método de pago y listo. El sistema descuenta automáticamente los libros del inventario. Se puede aplicar descuento en porcentaje o en pesos.
+
+### 7. Historial de ventas
+Se pueden ver todas las ventas que se han hecho, filtrarlas por fecha o buscar por cliente. El Admin puede anular una venta si algo salió mal (y el sistema devuelve los libros al inventario). También se puede descargar un ticket en PDF o exportar los datos a Excel.
+
+### 8. Otras secciones
+- **Clientes:** se registran los clientes con su nombre, documento, teléfono, etc.
+- **Proveedores:** se guardan los datos de las empresas que nos venden los libros.
+- **Autores y Categorías:** se manejan para poder clasificar los libros.
+- **Usuarios:** el Admin puede crear cuentas para otros empleados y asignarles un rol.
+- **Cambiar contraseña:** cualquier usuario puede cambiar su contraseña desde la barra de navegación.
+
+---
+
+## Tecnologías que usamos
+
+Estas son las herramientas y tecnologías que usamos para construir el proyecto. Cada una tiene una función específica:
+
+### Frontend (lo que ve el usuario)
+
+| Tecnología | ¿Para qué la usamos? |
+|------------|----------------------|
+| **React** | Para crear toda la interfaz del usuario (botones, formularios, tablas, etc.) |
+| **Vite** | Para que el proyecto cargue rápido mientras desarrollamos y para generar la versión final |
+| **Bootstrap** | Para que el diseño se vea bonito y funcione bien en celulares y computadores |
+| **React Router DOM** | Para navegar entre las páginas sin que se recargue toda la aplicación |
+| **Axios** | Para enviar y recibir datos del servidor (como cuando se guarda un libro o se hace una venta) |
+| **react-hook-form** | Para manejar los formularios y validar que el usuario llene bien los campos |
+| **Recharts** | Para crear las gráficas de barras y de torta en el Dashboard |
+| **jsPDF** | Para generar los tickets de venta en formato PDF |
+| **xlsx** | Para exportar datos a archivos de Excel |
+
+### Backend (la lógica del servidor)
+
+| Tecnología | ¿Para qué la usamos? |
+|------------|----------------------|
+| **Node.js** | Es el motor que permite correr JavaScript en el servidor |
+| **Express** | Es el framework que usamos para crear las rutas y manejar las peticiones del frontend |
+| **MySQL** | Es la base de datos donde se guarda toda la información (libros, ventas, clientes, etc.) |
+| **JWT** | Para manejar la sesión del usuario de forma segura (genera un token cuando inicia sesión) |
+| **bcrypt** | Para guardar las contraseñas encriptadas (nadie puede verlas en la base de datos) |
+| **Multer** | Para subir las imágenes de portada de los libros |
+| **morgan** | Para ver en la consola qué peticiones le llegan al servidor (útil para depurar) |
+| **compression** | Para comprimir las respuestas y que la app cargue más rápido |
+| **PM2** | Para mantener el servidor corriendo en producción sin que se caiga |
+| **Jest + Supertest** | Para hacer pruebas automatizadas y verificar que todo funcione bien |
+
+---
+
+## Arquitectura del proyecto (explicación sencilla)
+
+El proyecto tiene 3 partes principales que trabajan juntas:
 
 ```
-┌─────────────────────────────────────────────┐
-│         Base de Datos — MySQL 8             │
-│    Local (desarrollo) o Aiven Cloud         │
-└──────────────┬──────────────────────────────┘
-               │
-       ┌───────┴────────┐
-       ▼                ▼
-┌─────────────┐  ┌─────────────────┐
-│   Render    │  │     Vercel      │
-│  (Backend)  │  │   (Frontend)    │
-│  Express    │  │   React + Vite  │
-│  API REST   │  │   Build dist/   │
-└─────────────┘  └─────────────────┘
+┌──────────────────────┐
+│   FRONTEND (React)   │  ← Lo que el usuario ve y toca en el navegador
+│   Carpeta: cliente/  │     (botones, tablas, formularios)
+└──────────┬───────────┘
+           │ Se comunican por internet (peticiones HTTP)
+           │
+┌──────────▼───────────┐
+│  BACKEND (Express)   │  ← La lógica del negocio, recibe peticiones,
+│  Carpeta: servidor/  │     procesa datos y responde
+└──────────┬───────────┘
+           │ Guarda y consulta datos
+           │
+┌──────────▼───────────┐
+│  BASE DE DATOS       │  ← Donde se almacena toda la información
+│  MySQL               │     (libros, ventas, usuarios, etc.)
+└──────────────────────┘
 ```
 
-- **Frontend** → Vercel (Root Directory: `cliente` · Build: `npm run build` · Output: `dist`)
-- **Backend** → Render (variables de entorno configuradas en el dashboard)
-- **BD** → Aiven Cloud MySQL (producción) o MySQL local (desarrollo)
+**En resumen:**
+- El **Frontend** es como la cara del sistema, lo que el usuario ve.
+- El **Backend** es como el cerebro, procesa toda la lógica.
+- La **Base de datos** es como la memoria, guarda todo para que no se pierda.
 
-> Los archivos `.env` **nunca se suben al repositorio** (están en `.gitignore`). Las variables se configuran directamente en los dashboards de Render y Vercel.
+### En producción (cuando está en internet):
+- El Frontend se sube a **Vercel** (un servicio gratuito para páginas web)
+- El Backend se sube a **Render** (un servicio para servidores)
+- La Base de datos está en **Aiven Cloud** (MySQL en la nube)
+
+> Los archivos `.env` con las contraseñas **nunca se suben al repositorio**. Las variables se configuran directamente en los dashboards de Vercel y Render.
 
 ---
 
-## Estructura del Proyecto
+## Roles del sistema
 
-```
-proyecto-inventario/
-├── cliente/                          # Frontend React + Vite
-│   ├── src/
-│   │   ├── pages/                    # 11 páginas/vistas
-│   │   │   ├── Acceso.jsx            # Login
-│   │   │   ├── Inicio.jsx            # Dashboard (solo Admin)
-│   │   │   ├── Inventario.jsx
-│   │   │   ├── Movimientos.jsx
-│   │   │   ├── PaginaVentas.jsx      # Punto de Venta (POS)
-│   │   │   ├── HistorialVentas.jsx
-│   │   │   ├── PaginaClientes.jsx
-│   │   │   ├── AdminUsuarios.jsx     # Solo Admin
-│   │   │   ├── PaginaProveedores.jsx
-│   │   │   ├── PaginaAutores.jsx
-│   │   │   └── PaginaCategorias.jsx
-│   │   ├── components/
-│   │   │   ├── BarraNavegacion.jsx
-│   │   │   ├── ModalCambiarPassword.jsx
-│   │   │   └── RutaProtegidaPorRol.jsx
-│   │   ├── context/AuthContext.jsx   # Sesión y permisos globales (RBAC)
-│   │   ├── services/api.js           # Axios con interceptores JWT
-│   │   ├── hooks/usePaginacion.js    # Hook reutilizable de paginación
-│   │   └── styles/custom-theme.css  # Tema y estilos responsive
-│   └── public/
-│
-├── servidor/                         # Backend Node.js + Express 5
-│   ├── controllers/                  # Lógica de negocio (11 archivos)
-│   ├── routes/                       # Endpoints API REST (10 archivos)
-│   ├── middlewares/                  # JWT, RBAC, errores, rate limiting, Multer
-│   ├── config/db.js                  # Pool de conexiones MySQL (promise)
-│   ├── utils/paginacion.js           # Utilidad de paginación reutilizable
-│   ├── scripts/reset_password.js     # Genera hashes bcrypt iniciales
-│   ├── pruebas/                      # Tests Jest + Supertest (3 suites)
-│   ├── uploads/portadas/             # Imágenes de portada de libros
-│   ├── pm2.config.js                 # Configuración PM2 para producción
-│   ├── app.js                        # Configuración Express (middlewares + rutas)
-│   └── index.js                      # Punto de entrada + graceful shutdown
-│
-└── base_datos/
-    └── sgi_libreria_completo.sql     # Script único de instalación
-```
-
----
-
-## Módulos de la Aplicación
-
-### 1. Autenticación (`/acceso`)
-- Formulario de login con validación en tiempo real (react-hook-form)
-- Bloqueo de cuenta tras 3 intentos fallidos consecutivos
-- Barra de progreso visual de intentos restantes
-- Sesión persistida en `localStorage` mediante JWT
-- Botón mostrar/ocultar contraseña
-- Fondo con efecto parallax (desactivado en iOS/Safari)
-
-### 2. Dashboard (`/inicio`)
-> Solo **Administrador**
-
-- 4 tarjetas KPI: ventas del día, ventas del mes, total libros en catálogo, alertas de stock bajo
-- Gráfica de barras — ventas e ingresos últimos 6 meses (Recharts)
-- Gráfica de torta — distribución del catálogo por categoría (Recharts)
-- Top 5 productos más vendidos con ingresos generados
-- Top 5 mejores clientes por total gastado
-- Tabla de libros con stock ≤ stock mínimo con acceso directo a Inventario
-- Las consultas se ejecutan en paralelo en el backend (`Promise.all`) con caché de 60 segundos
-
-### 3. Inventario (`/inventario`)
-> **Administrador** y **Vendedor**
-
-- Tabla con miniatura de portada, ISBN, título, autor, categoría, precio y stock
-- Búsqueda instantánea por título, autor o ISBN (`useMemo`, sin petición al servidor)
-- Badges de stock: Disponible / Stock Bajo / Agotado
-- Crear/Editar libro con subida de imagen de portada (JPG/PNG/WebP, máx. 2 MB)
-- Eliminar libro: elimina también el archivo de portada del servidor
-
-### 4. Movimientos — Kardex (`/movimientos`)
-> **Administrador** y **Vendedor**
-
-- Registro de **ENTRADA** y **SALIDA** de inventario
-- Entradas: proveedor y costo de compra obligatorios (validación en frontend y backend)
-- Validación de proveedor existente dentro de transacción ACID
-- Panel "Últimos Movimientos" se actualiza automáticamente tras cada registro
-- Historial: libro, tipo, cantidad, stock anterior → nuevo, proveedor, costo, usuario, fecha
-
-### 5. Punto de Venta — POS (`/ventas`)
-> **Administrador** y **Vendedor**
-
-- Búsqueda dinámica de cliente
-- Carrito con múltiples ítems, cantidades editables y eliminación individual
-- Métodos de pago: Efectivo, Tarjeta, Transferencia, Mixto
-- Descuento en porcentaje o monto fijo
-- El backend recalcula y valida el total (nunca confía en el frontend)
-- Descuento automático del stock al confirmar (transacción ACID con `FOR UPDATE`)
-- En móvil: carrito se reordena debajo del formulario de productos
-
-### 6. Historial de Ventas (`/historial-ventas`)
-> **Administrador** y **Vendedor** (anular: solo Administrador)
-
-- Tabla con estado visual (badge): Completada / Anulada
-- Paginación del lado del servidor (10 registros por página)
-- Filtro por rango de fechas y búsqueda por cliente (con debounce 400 ms)
-- Anular venta: revierte el stock de cada ítem (transacción ACID) — solo Admin
-- Exportar a Excel (`xlsx`): exporta la vista filtrada actual
-- Descargar ticket PDF (`jsPDF`): genera documento tipo ticket POS de 80 mm
-
-### 7. Clientes (`/clientes`)
-> **Administrador** y **Vendedor**
-
-- CRUD completo · Tipos de documento: CC, NIT, CE, Pasaporte
-- Búsqueda en tiempo real por nombre o documento (`useMemo`)
-- Validación de documento único en base de datos
-
-### 8. Gestión de Usuarios (`/admin/usuarios`)
-> Solo **Administrador**
-
-- Tabla: nombre completo, email, rol (badge), estado y último acceso
-- Crear usuario: nombre, email, contraseña (mín. 6 caracteres) y rol
-- Editar: nombre, email y rol (sin contraseña)
-- Activar/Desactivar: usuario inactivo no puede iniciar sesión; el admin no puede desactivarse a sí mismo
-
-### 9. Cambiar Contraseña
-> Todos los usuarios autenticados
-
-- Modal accesible desde la barra de navegación
-- Requiere contraseña actual + nueva contraseña (mín. 6 caracteres) + confirmación
-
-### 10. Proveedores (`/proveedores`)
-> **Administrador** y **Vendedor**
-
-- CRUD completo · Campos: empresa, NIT, contacto, email, teléfono, dirección
-- Activar/Desactivar proveedores
-- Tabla con columnas que se ocultan progresivamente por breakpoint
-
-### 11. Autores (`/autores`)
-> **Administrador** y **Vendedor**
-
-- CRUD: nombre y nacionalidad · No se puede eliminar un autor con libros asociados
-
-### 12. Categorías (`/categorias`)
-> **Administrador** y **Vendedor**
-
-- CRUD: nombre y descripción · No se puede eliminar una categoría con libros asociados
-
----
-
-## Sistema de Roles (RBAC)
+El sistema tiene dos tipos de usuarios, cada uno puede hacer cosas diferentes:
 
 | Módulo | Administrador | Vendedor |
 |--------|:---:|:---:|
-| Dashboard | ✅ | ❌ |
-| Inventario (ver) | ✅ | ✅ |
-| Inventario (crear/editar/eliminar) | ✅ | ❌ |
-| Movimientos | ✅ | ✅ |
-| Punto de Venta | ✅ | ✅ |
-| Historial de Ventas (ver) | ✅ | ✅ |
-| Historial de Ventas (anular) | ✅ | ❌ |
-| Clientes (ver/crear) | ✅ | ✅ |
-| Clientes (editar/eliminar) | ✅ | ❌ |
-| Gestión de Usuarios | ✅ | ❌ |
-| Proveedores | ✅ | ✅ |
-| Autores | ✅ | ✅ |
-| Categorías | ✅ | ✅ |
-| Cambiar Contraseña | ✅ | ✅ |
+| Dashboard (estadísticas) | Si | No |
+| Ver inventario | Si | Si |
+| Crear/editar/eliminar libros | Si | No |
+| Movimientos (entradas y salidas) | Si | Si |
+| Punto de Venta | Si | Si |
+| Ver historial de ventas | Si | Si |
+| Anular ventas | Si | No |
+| Ver clientes | Si | Si |
+| Editar/eliminar clientes | Si | No |
+| Gestión de Usuarios | Si | No |
+| Proveedores, Autores, Categorías | Si | Si |
+| Cambiar contraseña propia | Si | Si |
 
 ---
 
-## API REST — Endpoints
+## Estructura del proyecto
 
-| Método | Ruta | Descripción | Acceso |
-|--------|------|-------------|--------|
-| GET | `/` | Health check (verifica BD) | Público |
-| POST | `/api/auth/login` | Iniciar sesión | Público |
-| GET | `/api/libros` | Listar libros con portada | Auth |
-| POST | `/api/libros` | Crear libro (multipart/form-data) | Admin |
-| PUT | `/api/libros/:id` | Actualizar libro | Admin |
-| DELETE | `/api/libros/:id` | Eliminar libro y portada | Admin |
-| GET | `/api/movimientos` | Historial kardex | Auth |
-| POST | `/api/movimientos` | Registrar movimiento | Auth |
-| GET | `/api/ventas` | Listar ventas paginadas | Auth |
-| POST | `/api/ventas` | Crear venta | Auth |
-| GET | `/api/ventas/:id` | Detalle de una venta | Auth |
-| PATCH | `/api/ventas/:id/anular` | Anular venta y revertir stock | Admin |
-| GET | `/api/clientes` | Listar clientes | Auth |
-| POST | `/api/clientes` | Crear cliente | Auth |
-| GET | `/api/clientes/:id` | Obtener cliente por ID | Auth |
-| PUT | `/api/clientes/:id` | Actualizar cliente | Admin |
-| DELETE | `/api/clientes/:id` | Eliminar cliente | Admin |
-| GET | `/api/dashboard` | Estadísticas globales (caché 60 s) | Admin |
-| GET | `/api/usuarios` | Listar usuarios | Admin |
-| POST | `/api/usuarios` | Crear usuario | Admin |
-| PUT | `/api/usuarios/:id` | Actualizar usuario | Admin |
-| PATCH | `/api/usuarios/:id/estado` | Activar/Desactivar usuario | Admin |
-| PATCH | `/api/usuarios/cambiar-password` | Cambiar contraseña propia | Auth |
-| GET | `/api/proveedores` | Listar proveedores | Auth |
-| POST | `/api/proveedores` | Crear proveedor | Admin |
-| PUT | `/api/proveedores/:id` | Actualizar proveedor | Admin |
-| PATCH | `/api/proveedores/:id/estado` | Activar/Desactivar proveedor | Admin |
-| GET | `/api/autores` | Listar autores | Auth |
-| POST | `/api/autores` | Crear autor | Admin |
-| PUT | `/api/autores/:id` | Actualizar autor | Admin |
-| DELETE | `/api/autores/:id` | Eliminar autor | Admin |
-| GET | `/api/categorias` | Listar categorías | Auth |
-| POST | `/api/categorias` | Crear categoría | Admin |
-| PUT | `/api/categorias/:id` | Actualizar categoría | Admin |
-| DELETE | `/api/categorias/:id` | Eliminar categoría | Admin |
+```
+proyecto-inventario/
+├── cliente/                          # Frontend (lo que ve el usuario)
+│   ├── src/
+│   │   ├── pages/                    # Las páginas de la aplicación
+│   │   │   ├── Acceso.jsx            # Página de login
+│   │   │   ├── Inicio.jsx            # Dashboard con gráficas
+│   │   │   ├── Inventario.jsx        # Lista de libros
+│   │   │   ├── Movimientos.jsx       # Entradas y salidas de inventario
+│   │   │   ├── PaginaVentas.jsx      # Punto de venta (caja)
+│   │   │   ├── HistorialVentas.jsx   # Historial de ventas
+│   │   │   ├── PaginaClientes.jsx    # Gestión de clientes
+│   │   │   ├── AdminUsuarios.jsx     # Gestión de usuarios (solo Admin)
+│   │   │   ├── PaginaProveedores.jsx # Gestión de proveedores
+│   │   │   ├── PaginaAutores.jsx     # Gestión de autores
+│   │   │   └── PaginaCategorias.jsx  # Gestión de categorías
+│   │   ├── components/               # Componentes reutilizables
+│   │   │   ├── BarraNavegacion.jsx   # Menú de navegación
+│   │   │   ├── ModalCambiarPassword.jsx
+│   │   │   └── RutaProtegidaPorRol.jsx
+│   │   ├── context/AuthContext.jsx   # Manejo de sesión y permisos
+│   │   ├── services/api.js           # Conexión con el servidor
+│   │   ├── hooks/usePaginacion.js    # Lógica de paginación
+│   │   └── styles/custom-theme.css   # Estilos personalizados
+│   └── public/
+│
+├── servidor/                         # Backend (lógica del servidor)
+│   ├── controllers/                  # Donde está la lógica de cada módulo
+│   ├── routes/                       # Las rutas de la API
+│   ├── middlewares/                  # Seguridad (JWT, roles, etc.)
+│   ├── config/db.js                  # Conexión a la base de datos
+│   ├── pruebas/                      # Pruebas automatizadas
+│   ├── uploads/portadas/             # Imágenes de portada de libros
+│   ├── app.js                        # Configuración del servidor
+│   └── index.js                      # Archivo principal que arranca todo
+│
+└── base_datos/
+    └── sgi_libreria_completo.sql     # Script para crear la base de datos
+```
 
 ---
 
-## Base de Datos
+## Base de datos
 
-**Motor:** MySQL 8 — InnoDB (transaccional) — Charset utf8mb4
-**Nombre:** `inventario_libreria` · **Prefijo de tablas:** `mdc_`
+Usamos **MySQL** para guardar toda la información. La base de datos se llama `inventario_libreria` y tiene 10 tablas. Todas empiezan con el prefijo `mdc_`.
 
-### Tablas (10)
+### Tablas principales
 
-| Tabla | Descripción |
-|-------|-------------|
-| `mdc_roles` | Roles del sistema (1=Administrador, 2=Vendedor) |
-| `mdc_usuarios` | Cuentas con hash bcrypt, estado activo/inactivo y último acceso |
-| `mdc_libros` | Inventario principal: ISBN, precio, stock actual/mínimo, portada |
-| `mdc_autores` | Catálogo de autores con nacionalidad |
-| `mdc_categorias` | Clasificación de libros con descripción |
-| `mdc_movimientos` | Kardex: tipo, cantidad, stock ant/nuevo, proveedor, costo, auditoría |
-| `mdc_clientes` | Registro de clientes con tipo de documento |
-| `mdc_proveedores` | Empresas suministradoras con estado activo/inactivo |
-| `mdc_ventas` | Cabecera de facturas — estado: Completada / Anulada |
-| `mdc_detalle_ventas` | Ítems de cada factura (ON DELETE CASCADE) |
+| Tabla | ¿Qué guarda? |
+|-------|--------------|
+| `mdc_roles` | Los roles del sistema (Administrador y Vendedor) |
+| `mdc_usuarios` | Las cuentas de los empleados (nombre, correo, contraseña encriptada) |
+| `mdc_libros` | Los libros con su ISBN, precio, stock y portada |
+| `mdc_autores` | Los autores de los libros |
+| `mdc_categorias` | Las categorías para clasificar los libros |
+| `mdc_movimientos` | El historial de entradas y salidas de inventario |
+| `mdc_clientes` | Los datos de los clientes |
+| `mdc_proveedores` | Los datos de los proveedores |
+| `mdc_ventas` | Las ventas realizadas |
+| `mdc_detalle_ventas` | Los libros que se vendieron en cada venta |
 
-### Vistas (3)
-
-| Vista | Descripción |
-|-------|-------------|
-| `v_libros_stock_bajo` | Libros en o por debajo del stock mínimo |
-| `v_ventas_hoy` | Resumen de ventas del día (total, ingresos, promedio) |
-| `v_catalogo_libros` | Catálogo completo con autor, categoría y estado de stock |
-
-### Índices de optimización (10)
-
-`idx_libros_titulo` · `idx_libros_isbn` · `idx_libros_stock` · `idx_ventas_fecha` · `idx_ventas_cliente` · `idx_movimientos_fecha` · `idx_movimientos_libro` · `idx_clientes_nombre` · `idx_clientes_documento` · `idx_usuarios_email`
-
-### Relaciones
+### Cómo se relacionan las tablas
 
 ```
-mdc_roles (1) ────< (N) mdc_usuarios
-                              │
-                              ├──> mdc_movimientos (N)
-                              └──> mdc_ventas (N)
+mdc_roles ──────> mdc_usuarios ──────> mdc_movimientos
+                                └────> mdc_ventas
 
-mdc_autores (1) ───< (N) mdc_libros ────< (N) mdc_movimientos
-mdc_categorias (1) ─< (N) mdc_libros ────< (N) mdc_detalle_ventas
+mdc_autores ────> mdc_libros ────> mdc_movimientos
+mdc_categorias ─> mdc_libros ────> mdc_detalle_ventas
 
-mdc_clientes (1) ──< (N) mdc_ventas (1) ─< (N) mdc_detalle_ventas
-mdc_proveedores (1) ─< (N) mdc_movimientos
+mdc_clientes ───> mdc_ventas ────> mdc_detalle_ventas
+mdc_proveedores ─> mdc_movimientos
 ```
 
-### Normalización
+La base de datos está **normalizada en Tercera Forma Normal (3NF)**, lo que significa que la información no se repite innecesariamente y está bien organizada.
 
-La base de datos cumple la **Tercera Forma Normal (3NF)** con motor InnoDB (soporte transaccional y claves foráneas).
+### Datos de prueba
 
-### Datos de prueba incluidos en el script SQL
+El script SQL ya trae datos de ejemplo para poder probar el sistema sin tener que cargar todo desde cero:
 
-- **8 Categorías**: Tecnología, Ficción, Historia, Ciencia, Negocios, Arte, Infantil, Autoayuda
-- **8 Autores**: García Márquez, Robert C. Martin, Isabel Allende, Vargas Llosa, Paulo Coelho, Stephen King, Borges, Cortázar
-- **10 Libros**: Cien Años de Soledad, Clean Code, El Alquimista, It, entre otros
-- **7 Clientes**: 5 personas naturales + 2 empresas
-- **4 Proveedores**: Distribuidoras y editoriales colombianas
-
-### Consultas útiles
-
-```sql
--- Estadísticas generales
-SELECT
-    (SELECT COUNT(*) FROM mdc_libros)      AS libros,
-    (SELECT COUNT(*) FROM mdc_clientes)    AS clientes,
-    (SELECT COUNT(*) FROM mdc_proveedores) AS proveedores,
-    (SELECT COUNT(*) FROM mdc_usuarios)    AS usuarios;
-
--- Libros con stock bajo
-SELECT id, titulo, stock_actual, stock_minimo
-FROM mdc_libros
-WHERE stock_actual <= stock_minimo;
-
--- Ventas del día
-SELECT v.id, c.nombre_completo AS cliente, v.total_venta, v.metodo_pago, v.fecha_venta
-FROM mdc_ventas v
-JOIN mdc_clientes c ON v.cliente_id = c.id
-WHERE DATE(v.fecha_venta) = CURDATE();
-
--- Top 5 libros más vendidos
-SELECT l.titulo, SUM(dv.cantidad) AS vendidos, SUM(dv.subtotal) AS ingresos
-FROM mdc_detalle_ventas dv
-JOIN mdc_libros l ON dv.libro_id = l.id
-GROUP BY l.id
-ORDER BY vendidos DESC
-LIMIT 5;
-```
-
-### Backup y restauración
-
-```bash
-# Crear backup
-mysqldump -u root -p inventario_libreria > backup_$(date +%Y%m%d).sql
-
-# Restaurar backup
-mysql -u root -p inventario_libreria < backup_20260101.sql
-```
+- 8 categorías (Tecnología, Ficción, Historia, etc.)
+- 8 autores (García Márquez, Isabel Allende, etc.)
+- 10 libros de ejemplo
+- 7 clientes
+- 4 proveedores
 
 ---
 
 ## Seguridad
 
-- **JWT** con expiración configurable en `.env`
-- **bcrypt** (salt rounds: 10) para almacenamiento seguro de contraseñas
-- **Rate limiting** en login (10 intentos/15 min por IP) y API general (500/15 min)
-- **RBAC** — verificación de rol en el middleware de cada ruta protegida
-- **Bloqueo de cuenta** tras 3 intentos fallidos consecutivos (Map en memoria)
-- **CORS** restringido al origen exacto configurado en `.env`
-- **Helmet** — headers de seguridad HTTP (CSP, HSTS, X-Frame-Options, etc.)
-- **Manejo global de errores** — nunca expone stack traces en producción
-- **Validación doble** — frontend (react-hook-form) + backend (Express)
-- **Validación de IDs en URL** — middleware `validarId` previene IDs maliciosos
-- **Transacciones ACID** en operaciones críticas (ventas, movimientos, anulaciones)
-- **Validación de archivos** — tipo MIME y extensión verificados en el servidor (Multer)
-- **Graceful shutdown** — cierre ordenado del servidor ante SIGTERM/SIGINT
+Implementamos varias medidas de seguridad para proteger el sistema:
+
+- **Contraseñas encriptadas:** se guardan con bcrypt, nadie puede ver la contraseña real
+- **Tokens JWT:** cuando el usuario inicia sesión, se genera un token que lo identifica
+- **Control de roles:** cada ruta verifica que el usuario tenga permiso para acceder
+- **Bloqueo de cuenta:** después de 3 intentos fallidos, la cuenta se bloquea
+- **Límite de peticiones:** si alguien intenta hacer muchas peticiones seguidas, el sistema lo bloquea
+- **CORS:** solo el frontend autorizado puede comunicarse con el servidor
+- **Validación doble:** los datos se validan en el frontend Y en el backend
+- **Transacciones:** las operaciones importantes (ventas, movimientos) usan transacciones para que no queden datos a medias
 
 ---
 
-## Preparación para Producción
+## API REST — Endpoints principales
 
-Funcionalidades implementadas orientadas al despliegue real:
+Esta es la lista de rutas que el backend expone para que el frontend se comunique con él:
 
-| Característica | Descripción |
-|----------------|-------------|
-| **Graceful shutdown** | `index.js` maneja SIGTERM/SIGINT: cierra el servidor HTTP, luego el pool de BD |
-| **Compresión gzip** | Middleware `compression` reduce respuestas JSON hasta un 80% |
-| **Logging HTTP** | `morgan` en formato `dev` (desarrollo) y `combined` (producción) |
-| **Health check** | `GET /` verifica la conexión real a la BD con `SELECT 1`, responde 503 si falla |
-| **PM2** | `pm2.config.js` configura reinicio automático, límite de memoria y señales de cierre |
-| **Code splitting** | `vite.config.js` separa `vendor`, `charts` y `exportar` en chunks independientes |
+| Método | Ruta | ¿Qué hace? | ¿Quién puede? |
+|--------|------|-------------|----------------|
+| POST | `/api/auth/login` | Iniciar sesión | Cualquiera |
+| GET | `/api/libros` | Ver todos los libros | Usuario autenticado |
+| POST | `/api/libros` | Agregar un libro | Admin |
+| PUT | `/api/libros/:id` | Editar un libro | Admin |
+| DELETE | `/api/libros/:id` | Eliminar un libro | Admin |
+| GET | `/api/movimientos` | Ver historial de movimientos | Usuario autenticado |
+| POST | `/api/movimientos` | Registrar entrada o salida | Usuario autenticado |
+| GET | `/api/ventas` | Ver ventas | Usuario autenticado |
+| POST | `/api/ventas` | Crear una venta | Usuario autenticado |
+| PATCH | `/api/ventas/:id/anular` | Anular una venta | Admin |
+| GET | `/api/clientes` | Ver clientes | Usuario autenticado |
+| POST | `/api/clientes` | Crear cliente | Usuario autenticado |
+| PUT | `/api/clientes/:id` | Editar cliente | Admin |
+| DELETE | `/api/clientes/:id` | Eliminar cliente | Admin |
+| GET | `/api/dashboard` | Ver estadísticas | Admin |
+| GET/POST/PUT/PATCH | `/api/usuarios` | Gestión de usuarios | Admin |
+| GET/POST/PUT/PATCH | `/api/proveedores` | Gestión de proveedores | Varía |
+| GET/POST/PUT/DELETE | `/api/autores` | Gestión de autores | Varía |
+| GET/POST/PUT/DELETE | `/api/categorias` | Gestión de categorías | Varía |
 
 ---
 
-## Instalación Local
+## Instalación (cómo correr el proyecto en tu computador)
 
-### Requisitos
+### Lo que necesitas tener instalado
 
-- Node.js 18+
-- MySQL 8 instalado localmente (o acceso a Aiven Cloud)
+- **Node.js** versión 18 o superior
+- **MySQL 8**
 
-### 1. Clonar el repositorio
+### Paso 1: Clonar el proyecto
 
 ```bash
 git clone https://github.com/cperdomope/SGI-Libreria-el-Saber.git
 cd SGI-Libreria-el-Saber
 ```
 
-### 2. Base de datos
+### Paso 2: Crear la base de datos
 
 ```bash
 mysql -u root -p < base_datos/sgi_libreria_completo.sql
 ```
 
-> Si usas Aiven Cloud, configura `DB_SSL=true` y las credenciales correspondientes en el `.env`.
-
-### 3. Backend
+### Paso 3: Configurar y arrancar el backend
 
 ```bash
 cd servidor
-cp .env.example .env        # Completar con credenciales reales
+cp .env.example .env        # Editar este archivo con tus datos de MySQL
 npm install
-node scripts/reset_password.js  # Generar hashes bcrypt (solo primera vez)
-npm start                        # Servidor en http://localhost:3000
+node scripts/reset_password.js  # Solo la primera vez, genera las contraseñas
+npm start                        # El servidor arranca en http://localhost:3000
 ```
 
-### 4. Frontend
+### Paso 4: Configurar y arrancar el frontend
 
 ```bash
 cd cliente
 npm install
-# Crear .env con: VITE_API_URL=http://localhost:3000/api
-npm run dev                      # Aplicación en http://localhost:5173
+# Crear un archivo .env con esta línea: VITE_API_URL=http://localhost:3000/api
+npm run dev                      # La app arranca en http://localhost:5173
 ```
 
-### Usuarios del sistema
+### Usuarios para probar
 
-| Nombre | Email | Rol |
-|--------|-------|-----|
+| Nombre | Correo | Rol |
+|--------|--------|-----|
 | Luz Darlys | ldarlys@sena.edu.co | Administrador |
 | Michelle Martínez | michelle@sena.edu.co | Vendedor |
 | Carlos Ivan Perdomo | cip@sena.edu.co | Administrador |
 
 ---
 
-## Variables de Entorno
+## Variables de entorno
+
+Son valores privados que cada quien configura en su computador. Nunca se suben a GitHub.
 
 ### `servidor/.env`
 
 ```
 PORT=3000
-DB_HOST=localhost               # o <host-aiven> en producción
+DB_HOST=localhost
 DB_PORT=3306
 DB_USER=root
-DB_PASSWORD=<contraseña>
+DB_PASSWORD=tu_contraseña_de_mysql
 DB_NAME=inventario_libreria
-DB_SSL=false                    # true para Aiven Cloud / producción
-JWT_SECRET=<clave-secreta-larga-y-aleatoria>
-NODE_ENV=development            # production en Render
-CORS_ORIGIN=http://localhost:5173  # URL de Vercel en producción
+DB_SSL=false
+JWT_SECRET=una_clave_secreta_larga
+NODE_ENV=development
+CORS_ORIGIN=http://localhost:5173
 ```
 
 ### `cliente/.env`
 
 ```
-# Desarrollo local
 VITE_API_URL=http://localhost:3000/api
-
-# Producción → configurar en Vercel dashboard, no en este archivo
-# VITE_API_URL=https://<backend>.onrender.com/api
 ```
-
-### Variables en Vercel (dashboard)
-
-| Variable | Valor |
-|----------|-------|
-| `VITE_API_URL` | `https://<backend>.onrender.com/api` |
-
-### Variables en Render (dashboard)
-
-`DB_HOST` · `DB_PORT` · `DB_USER` · `DB_PASSWORD` · `DB_NAME` · `DB_SSL=true` · `JWT_SECRET` · `NODE_ENV=production` · `CORS_ORIGIN=<URL-Vercel>`
 
 ---
 
-## Pruebas Automatizadas
+## Pruebas automatizadas
+
+Hicimos pruebas con Jest y Supertest para verificar que las funciones más importantes del backend funcionan bien.
 
 ```bash
 cd servidor
 npm test
 ```
 
-| Suite | Casos | Qué prueba |
-|-------|-------|-----------|
-| `pruebas/auth.test.js` | 5 | Login, JWT, rutas protegidas |
-| `pruebas/clientes.test.js` | 4 | CRUD clientes, permisos por rol |
-| `pruebas/ventas.test.js` | 5 | Creación, validación de totales, seguridad |
+| Archivo de prueba | ¿Qué prueba? |
+|-------------------|--------------|
+| `pruebas/auth.test.js` | Que el login funcione, que el token JWT sea válido, que las rutas protegidas no dejen pasar sin token |
+| `pruebas/clientes.test.js` | Que se puedan crear, leer, editar y eliminar clientes, y que los permisos funcionen |
+| `pruebas/ventas.test.js` | Que se puedan crear ventas, que los totales se calculen bien, que la seguridad funcione |
 
 ---
 
-## Responsive Design
+## Diseño responsive
 
-| Breakpoint | px | Dispositivo |
-|------------|-----|-------------|
-| xs | < 576 | Móvil pequeño |
-| sm | ≥ 576 | Móvil |
-| md | ≥ 768 | Tablet |
-| lg | ≥ 992 | Laptop |
-| xl | ≥ 1200 | Desktop |
-| xxl | ≥ 1400 | Pantalla grande |
+La aplicación se adapta a diferentes tamaños de pantalla:
 
-- Navbar con colapso hamburguesa en móvil
-- POS: carrito sticky en desktop, reordenado debajo en móvil
-- Tablas con scroll horizontal y columnas que se ocultan por breakpoint
-- Dashboard: header flexible con `clamp()` y gráficas adaptadas con `ResponsiveContainer`
-- Login: parallax desactivado en iOS/Safari
+- En **celular**: el menú se convierte en hamburguesa, las tablas se pueden desplazar horizontalmente y el carrito de ventas se mueve debajo del formulario
+- En **tablet**: se ven más columnas en las tablas y el diseño se acomoda
+- En **computador**: se ve todo completo, con el carrito al lado del formulario de ventas
+
+---
+
+## ¿Qué aprendí con este proyecto?
+
+Este proyecto me enseñó muchas cosas que no se aprenden solo con la teoría:
+
+- **A organizar un proyecto real:** Aprendí a separar el frontend del backend, a organizar las carpetas y a que cada archivo tenga una responsabilidad clara.
+
+- **A trabajar con bases de datos de verdad:** No es lo mismo hacer ejercicios sueltos de SQL que diseñar una base de datos completa con relaciones, llaves foráneas y transacciones.
+
+- **A manejar la seguridad:** Entendí por qué es importante encriptar contraseñas, validar datos en el servidor (no solo en el frontend) y controlar quién puede hacer qué con los roles.
+
+- **A conectar frontend con backend:** Aprendí cómo React se comunica con Express a través de peticiones HTTP, cómo enviar datos, recibir respuestas y manejar errores.
+
+- **A resolver problemas reales:** Muchas veces las cosas no funcionaban a la primera. Aprendí a leer errores, buscar soluciones y depurar código.
+
+- **A usar herramientas profesionales:** Git para el control de versiones, variables de entorno para datos sensibles, pruebas automatizadas para verificar que el código funcione.
+
+- **A pensar en el usuario:** El sistema tiene que ser fácil de usar, verse bien en celular y en computador, y dar mensajes claros cuando algo sale mal.
+
+- **A desplegar en internet:** Pasar de "funciona en mi computador" a "funciona en internet" fue todo un reto. Aprendí a usar servicios como Vercel, Render y Aiven.
 
 ---
 

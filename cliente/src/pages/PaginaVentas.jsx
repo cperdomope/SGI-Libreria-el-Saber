@@ -116,9 +116,11 @@ const PaginaVentas = () => {
   // Control de búsqueda
   const [busqueda, setBusqueda] = useState('');
 
-  // Carrito de compras y cliente seleccionado
+  // Carrito de compras, cliente, método de pago y descuento
   const [carrito, setCarrito] = useState([]);
   const [clienteId, setClienteId] = useState('');
+  const [metodoPago, setMetodoPago] = useState('Efectivo');
+  const [descuentoPorcentaje, setDescuentoPorcentaje] = useState(0);
 
   // Estados de UI
   const [loading, setLoading] = useState(true);
@@ -175,11 +177,20 @@ const PaginaVentas = () => {
   // CÁLCULOS DEL CARRITO
   // ─────────────────────────────────────────────────
 
-  // Memoizado para que no recalcule en renders no relacionados con el carrito
-  const total = useMemo(
+  // Subtotal: suma de todos los items sin descuento
+  const subtotal = useMemo(
     () => carrito.reduce((sum, item) => sum + calcularSubtotal(item.cantidad, item.precio), 0),
     [carrito]
   );
+
+  // Monto del descuento en pesos (porcentaje aplicado al subtotal)
+  const montoDescuento = useMemo(
+    () => Math.round(subtotal * (parsearNumero(descuentoPorcentaje) / 100)),
+    [subtotal, descuentoPorcentaje]
+  );
+
+  // Total final = subtotal - descuento
+  const total = subtotal - montoDescuento;
 
   // ─────────────────────────────────────────────────
   // GESTIÓN DEL CARRITO
@@ -308,7 +319,10 @@ const PaginaVentas = () => {
       // Preparar datos para el backend
       const datosVenta = {
         cliente_id: clienteId,
+        subtotal: subtotal,
+        descuento: montoDescuento,
         total: total,
+        metodo_pago: metodoPago,
         items: carrito.map(item => ({
           libro_id: item.id,
           cantidad: item.cantidad,
@@ -320,9 +334,10 @@ const PaginaVentas = () => {
 
       alert(`Venta registrada exitosamente. ID: ${respuesta.data.ventaId}`);
 
-      // Limpiar carrito y selección
+      // Limpiar carrito, selección y descuento
       setCarrito([]);
       setClienteId('');
+      setDescuentoPorcentaje(0);
 
       // Recargar inventario para reflejar nuevo stock
       const resLibros = await api.get('/libros');
@@ -336,7 +351,7 @@ const PaginaVentas = () => {
     } finally {
       setProcesando(false);
     }
-  }, [clienteId, carrito]);
+  }, [clienteId, carrito, total, subtotal, montoDescuento, metodoPago]);
 
   // ─────────────────────────────────────────────────
   // RENDER
@@ -352,7 +367,7 @@ const PaginaVentas = () => {
             ───────────────────────────────────────────────── */}
         <div className="col-md-8 pos-catalog">
           <div className="mb-3">
-            <h3 className="mb-2">Catálogo de Libros</h3>
+            <h4 className="fw-bold mb-2">Catálogo de Libros</h4>
             <div className="input-group">
               <span className="input-group-text"><IconoBuscar /></span>
               <input
@@ -381,20 +396,25 @@ const PaginaVentas = () => {
                   <div key={libro.id} className="col-12 col-sm-6 col-md-4 mb-3">
                     <div className="card shadow-sm h-100">
                       <div className="card-body">
-                        <h5 className="card-title text-truncate">{libro.titulo}</h5>
-                        <p className="card-text text-muted small">
-                          Autor ID: {libro.autor_id || 'N/A'}
+                        <h6 className="card-title text-truncate fw-bold mb-1">{libro.titulo}</h6>
+                        <p className="card-text text-muted small mb-1">
+                          {libro.autor || 'Sin autor'}
+                          {libro.categoria ? ` · ${libro.categoria}` : ''}
                         </p>
-                        <h6 className="text-primary fw-bold">
-                          ${parsearNumero(libro.precio_venta).toLocaleString('es-CO')}
-                        </h6>
-                        <small>Disponibles: {parsearNumero(libro.stock_actual)}</small>
+                        <div className="d-flex justify-content-between align-items-center mb-1">
+                          <span className="fw-bold" style={{ color: '#053225' }}>
+                            ${parsearNumero(libro.precio_venta).toLocaleString('es-CO')}
+                          </span>
+                          <span className={`badge ${parsearNumero(libro.stock_actual) <= 3 ? 'bg-danger' : 'bg-success'}`}>
+                            {parsearNumero(libro.stock_actual)} uds
+                          </span>
+                        </div>
                         <button
-                          className="btn btn-primary w-100 mt-2 btn-sm"
+                          className="btn btn-primary w-100 btn-sm"
                           onClick={() => agregarAlCarrito(libro)}
                           disabled={parsearNumero(libro.stock_actual) <= 0}
                         >
-                          {parsearNumero(libro.stock_actual) > 0 ? '+ Agregar' : 'Agotado'}
+                          {parsearNumero(libro.stock_actual) > 0 ? '+ Agregar al carrito' : 'Sin stock'}
                         </button>
                       </div>
                     </div>
@@ -427,6 +447,39 @@ const PaginaVentas = () => {
                   <option key={c.id} value={c.id}>{c.nombre_completo}</option>
                 ))}
               </select>
+
+              {/* Selector de Método de Pago */}
+              <label className="form-label">Método de pago:</label>
+              <select
+                className="form-select mb-3"
+                value={metodoPago}
+                onChange={e => setMetodoPago(e.target.value)}
+              >
+                <option value="Efectivo">Efectivo</option>
+                <option value="Tarjeta">Tarjeta</option>
+                <option value="Transferencia">Transferencia</option>
+                <option value="Mixto">Mixto</option>
+              </select>
+
+              {/* Descuento en porcentaje */}
+              <label className="form-label">Descuento (%):</label>
+              <div className="input-group mb-3">
+                <input
+                  type="number"
+                  className="form-control"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={descuentoPorcentaje}
+                  onChange={e => {
+                    let valor = parsearNumero(e.target.value);
+                    if (valor < 0) valor = 0;
+                    if (valor > 100) valor = 100;
+                    setDescuentoPorcentaje(valor);
+                  }}
+                />
+                <span className="input-group-text">%</span>
+              </div>
 
               <hr />
 
@@ -491,8 +544,21 @@ const PaginaVentas = () => {
                 })}
               </ul>
 
-              {/* Total y Botón de Confirmación */}
+              {/* Resumen de totales */}
               <div className="alert alert-success text-center mb-3" style={{ backgroundColor: '#d1e7dd' }}>
+                {montoDescuento > 0 ? (
+                  <>
+                    <div className="d-flex justify-content-between small text-muted mb-1">
+                      <span>Subtotal:</span>
+                      <span>${subtotal.toLocaleString('es-CO')}</span>
+                    </div>
+                    <div className="d-flex justify-content-between small text-danger mb-1">
+                      <span>Descuento ({descuentoPorcentaje}%):</span>
+                      <span>-${montoDescuento.toLocaleString('es-CO')}</span>
+                    </div>
+                    <hr className="my-1" />
+                  </>
+                ) : null}
                 <div className="mb-1 text-muted small">Total a Pagar:</div>
                 <h3 className="mb-0 fw-bold text-success">
                   ${total.toLocaleString('es-CO')}

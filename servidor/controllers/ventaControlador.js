@@ -99,7 +99,7 @@ const validarStockDisponible = async (connection, items) => {
 //  sola transacción para garantizar consistencia."
 exports.crearVenta = async (req, res, next) => {
   // Extraemos todos los datos enviados por el formulario de venta del frontend
-  const { cliente_id, total, items, metodo_pago } = req.body;
+  const { cliente_id, subtotal: subtotalEnviado, descuento: descuentoEnviado, total, items, metodo_pago } = req.body;
 
   // ─────────────────────────────────────────────────
   // VALIDACIONES INICIALES (antes de tocar la BD)
@@ -158,6 +158,21 @@ exports.crearVenta = async (req, res, next) => {
   }
 
   // ─────────────────────────────────────────────────
+  // VALIDACIÓN DEL DESCUENTO
+  // ─────────────────────────────────────────────────
+  // El descuento es opcional (por defecto 0).
+  // Si se envía, debe ser un número no negativo y no puede
+  // ser mayor que el subtotal (no puede quedar total negativo).
+  const descuento = Number(descuentoEnviado) || 0;
+
+  if (descuento < 0) {
+    return res.status(400).json({
+      exito: false,
+      mensaje: 'El descuento no puede ser negativo'
+    });
+  }
+
+  // ─────────────────────────────────────────────────
   // VALIDACIÓN DEL TOTAL - SEGURIDAD IMPORTANTE
   // ─────────────────────────────────────────────────
   // El frontend envía el total calculado, pero NO confiamos en él.
@@ -168,14 +183,26 @@ exports.crearVenta = async (req, res, next) => {
   // 🔹 En la sustentación puedo decir:
   // "Recalculamos el total en el backend como medida de seguridad.
   //  Si el total enviado por el frontend no coincide con el calculado
-  //  en el servidor, la venta es rechazada."
-  const totalCalculado = items.reduce((suma, item) => {
+  //  en el servidor, la venta es rechazada. Esto incluye la validación
+  //  del descuento aplicado."
+  const subtotalCalculado = items.reduce((suma, item) => {
     return suma + (item.cantidad * item.precio_unitario);
   }, 0); // Empezamos sumando desde 0
 
-  // Permitimos una diferencia máxima de $0.01 por redondeo de decimales
+  // El descuento no puede ser mayor que el subtotal
+  if (descuento > subtotalCalculado) {
+    return res.status(400).json({
+      exito: false,
+      mensaje: 'El descuento no puede ser mayor al subtotal de la venta'
+    });
+  }
+
+  // Total esperado = subtotal - descuento
+  const totalCalculado = subtotalCalculado - descuento;
+
+  // Permitimos una diferencia máxima de $1 por redondeo de decimales
   const diferencia = Math.abs(totalCalculado - total);
-  if (diferencia > 0.01) {
+  if (diferencia > 1) {
     return res.status(400).json({
       exito: false,
       mensaje: `El total no coincide. Calculado: ${totalCalculado}, Recibido: ${total}`,
@@ -217,9 +244,9 @@ exports.crearVenta = async (req, res, next) => {
     // quién compró, cuánto pagó, cuándo fue, cómo pagó.
     // ─────────────────────────────────────────────────
     const [ventaResult] = await connection.query(
-      `INSERT INTO mdc_ventas (cliente_id, usuario_id, total_venta, metodo_pago, fecha_venta)
-       VALUES (?, ?, ?, ?, NOW())`,
-      [cliente_id, req.usuario.id, total, metodoPago]
+      `INSERT INTO mdc_ventas (cliente_id, usuario_id, descuento, total_venta, metodo_pago, fecha_venta)
+       VALUES (?, ?, ?, ?, ?, NOW())`,
+      [cliente_id, req.usuario.id, descuento, total, metodoPago]
     );
 
     // MySQL nos devuelve el ID autogenerado para la venta recién creada
@@ -446,8 +473,10 @@ exports.obtenerDetalleVenta = async (req, res, next) => {
       SELECT
         v.id,
         v.fecha_venta,
+        v.descuento,
         v.total_venta AS total,
         v.metodo_pago,
+        v.estado,
         c.nombre_completo AS cliente,
         c.documento,
         c.telefono
