@@ -16,8 +16,7 @@
 // "cambiar-password" como un valor del parámetro :id,
 // lo que causaría un error inesperado.
 // Regla general: las rutas específicas van ANTES que las de parámetro.
-//
-// 🔹 En la sustentación puedo decir:
+
 // "El módulo de usuarios tiene una excepción de acceso:
 //  cambiar contraseña está disponible para cualquier usuario autenticado,
 //  porque todos necesitan poder actualizar su propia contraseña.
@@ -36,6 +35,10 @@ const verificarToken = require('../middlewares/verificarToken');
 
 // Solo permite acceso a administradores (rol_id = 1)
 const { soloAdministrador } = require('../middlewares/verificarRol');
+
+// Valida que el parametro :id sea un numero entero positivo
+// Valida que el parametro :id sea un numero entero positivo
+const { validarId } = require('../middlewares/validarParametroId');
 
 // ─────────────────────────────────────────────────────────
 // PATCH /api/usuarios/cambiar-password
@@ -67,7 +70,7 @@ router.post('/', verificarToken, soloAdministrador, usuarioControlador.crearUsua
 // Actualiza nombre, email o rol de un usuario.
 // No cambia la contraseña (eso va por /cambiar-password).
 // Acceso: SOLO Administradores.
-router.put('/:id', verificarToken, soloAdministrador, usuarioControlador.actualizarUsuario);
+router.put('/:id', verificarToken, soloAdministrador, validarId('usuario'), usuarioControlador.actualizarUsuario);
 
 // ─────────────────────────────────────────────────────────
 // PATCH /api/usuarios/:id/estado
@@ -76,6 +79,6 @@ router.put('/:id', verificarToken, soloAdministrador, usuarioControlador.actuali
 // Un usuario desactivado no puede iniciar sesión.
 // El admin no puede desactivarse a sí mismo (protección en el controlador).
 // Acceso: SOLO Administradores.
-router.patch('/:id/estado', verificarToken, soloAdministrador, usuarioControlador.cambiarEstado);
+router.patch('/:id/estado', verificarToken, soloAdministrador, validarId('usuario'), usuarioControlador.cambiarEstado);
 
 module.exports = router;

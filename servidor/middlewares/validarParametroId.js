@@ -13,7 +13,7 @@
 // Sin validación, ese valor llegaría a la consulta SQL y causaría
 // errores inesperados o comportamientos extraños.
 //
-// ¿Por qué un middleware y no validar en cada controlador?
+// Por qué un middleware y no validar en cada controlador?
 // Antes de crear este middleware, la validación se repetía en
 // más de 13 controladores distintos. Centralizar la lógica en
 // un solo lugar sigue el principio DRY (Don't Repeat Yourself):
@@ -24,8 +24,7 @@
 // BONUS: Este middleware además convierte el string a número entero
 // (parseInt) y guarda el resultado en req.params, para que los
 // controladores reciban el ID ya parseado y listo para usar.
-//
-// 🔹 En la sustentación puedo decir:
+
 // "validarParametroId es un middleware reutilizable que aplica el
 //  principio DRY: centraliza la validación de IDs en la URL para
 //  que los controladores no tengan que repetir esa lógica.

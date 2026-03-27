@@ -16,8 +16,7 @@
 // Agregar stock se hace desde el módulo de "Movimientos" (Kardex),
 // no desde aquí. Esto garantiza que cada cambio de stock
 // quede registrado con quién lo hizo y por qué.
-//
-// 🔹 En la sustentación puedo decir:
+
 // "El controlador de libros gestiona el CRUD del inventario.
 //  El stock se maneja exclusivamente a través del módulo de
 //  movimientos para mantener trazabilidad completa de cada
@@ -27,12 +26,37 @@
 // Conexión al pool de base de datos MySQL
 const db   = require('../config/db');
 
-// path: módulo de Node.js para manejar rutas de archivos de forma segura
+// path y fs: para eliminar imágenes locales cuando no se usa Cloudinary
 const path = require('path');
-
-// fs: módulo de Node.js para operaciones del sistema de archivos
-// Lo usamos para borrar imágenes de portadas cuando se actualizan o eliminan libros
 const fs   = require('fs');
+
+// usarCloudinary: indica si las imágenes van a la nube o al disco local
+const { usarCloudinary } = require('../middlewares/uploadImagen');
+
+// ─────────────────────────────────────────────────────────
+// HELPER: eliminar portada (local o Cloudinary)
+// ─────────────────────────────────────────────────────────
+// portadaGuardada puede ser:
+//   - Un nombre de archivo (ej: "portada-123.jpg")   → imagen local
+//   - Una URL completa (ej: "https://res.cloudinary.com/...") → Cloudinary
+function eliminarPortada(portadaGuardada) {
+  if (!portadaGuardada) return;
+
+  if (portadaGuardada.startsWith('http')) {
+    // Imagen en Cloudinary: extraemos el public_id de la URL y la destruimos.
+    // URL ejemplo: https://res.cloudinary.com/cloud/image/upload/v123/sgi_portadas/abc.jpg
+    // public_id   → "sgi_portadas/abc"  (sin extensión, sin versión)
+    const match = portadaGuardada.match(/\/upload\/(?:v\d+\/)?(.+?)(?:\.[^.]+)?$/);
+    if (match) {
+      const cloudinary = require('cloudinary').v2;
+      cloudinary.uploader.destroy(match[1], () => {});  // Ignoramos error
+    }
+  } else {
+    // Imagen en disco local: borramos el archivo directamente
+    const rutaLocal = path.join(__dirname, '..', 'uploads', 'portadas', portadaGuardada);
+    fs.unlink(rutaLocal, () => {});  // Ignoramos error si ya no existe
+  }
+}
 
 // =====================================================
 // CONTROLADOR 1: OBTENER TODOS LOS LIBROS
@@ -41,8 +65,7 @@ const fs   = require('fs');
 // Devuelve el listado completo de libros del inventario.
 // Incluye el nombre del autor y la categoría (no solo sus IDs).
 // Opcionalmente soporta paginación si se envían los parámetros.
-//
-// 🔹 En la sustentación puedo decir:
+
 // "La consulta usa JOIN para traer el nombre del autor y la
 //  categoría en una sola consulta, evitando múltiples viajes
 //  a la base de datos. También implementa paginación opcional
@@ -73,6 +96,7 @@ exports.obtenerLibros = async (req, res) => {
         l.isbn,
         l.portada,
         l.titulo,
+        l.descripcion,
         l.autor_id,
         l.categoria_id,
         CAST(l.precio_venta AS DECIMAL(10,2)) AS precio_venta,
@@ -137,8 +161,7 @@ exports.obtenerLibros = async (req, res) => {
 // Para agregar stock se usa el módulo de movimientos.
 //
 // También maneja la subida de imagen de portada (multer).
-//
-// 🔹 En la sustentación puedo decir:
+
 // "Al crear un libro, el sistema valida que el título no esté
 //  vacío y que el precio sea positivo. El ISBN es único en la BD,
 //  lo cual el servidor detecta y devuelve un mensaje claro.
@@ -150,7 +173,11 @@ exports.crearLibro = async (req, res) => {
 
   // req.file viene de multer (middleware de manejo de archivos).
   // Si el usuario no subió imagen, portadaFilename quedará como null.
-  const portadaFilename = req.file ? req.file.filename : null;
+  // Con Cloudinary: req.file.path es la URL pública (https://res.cloudinary.com/...)
+  // Con disco local: req.file.filename es solo el nombre del archivo
+  const portadaFilename = req.file
+    ? (usarCloudinary ? req.file.path : req.file.filename)
+    : null;
 
   // ─────────────────────────────────────────────────
   // VALIDACIONES ANTES DE GUARDAR
@@ -239,8 +266,7 @@ exports.crearLibro = async (req, res) => {
 // Cosas importantes que NO hace este controlador:
 //   - NO modifica el stock_actual (eso es exclusivo del módulo de movimientos)
 //   - Si se sube nueva imagen, borra la imagen anterior del disco
-//
-// 🔹 En la sustentación puedo decir:
+
 // "Al actualizar un libro, si se sube una nueva imagen de portada,
 //  el sistema elimina la imagen anterior del servidor para no
 //  desperdiciar espacio en disco. El stock solo se puede cambiar
@@ -250,8 +276,12 @@ exports.actualizarLibro = async (req, res) => {
   const { id } = req.params;
   const { isbn, titulo, autor_id, categoria_id, precio_venta, stock_minimo } = req.body;
 
-  // Si el usuario subió una nueva imagen de portada, multer nos da el nombre del archivo
-  const nuevaPortada = req.file ? req.file.filename : null;
+  // Si el usuario subió una nueva imagen de portada, obtenemos su referencia.
+  // Con Cloudinary: req.file.path es la URL pública completa
+  // Con disco local: req.file.filename es el nombre del archivo
+  const nuevaPortada = req.file
+    ? (usarCloudinary ? req.file.path : req.file.filename)
+    : null;
 
   // Validamos que el título no esté vacío
   if (!titulo || titulo.trim() === '') {
@@ -304,11 +334,10 @@ exports.actualizarLibro = async (req, res) => {
       valores
     );
 
-    // Si se subió nueva portada y había una anterior, borramos el archivo viejo del disco
+    // Si se subió nueva portada y había una anterior, eliminamos la imagen vieja
+    // (del disco local o de Cloudinary, según corresponda)
     if (nuevaPortada && portadaAnterior) {
-      const rutaAntigua = path.join(__dirname, '..', 'uploads', 'portadas', portadaAnterior);
-      // El segundo parámetro es una función que ignora errores (el archivo puede no existir)
-      fs.unlink(rutaAntigua, () => {});
+      eliminarPortada(portadaAnterior);
     }
 
     // affectedRows = 0 significa que no existía un libro con ese ID
@@ -357,8 +386,7 @@ exports.actualizarLibro = async (req, res) => {
 // La base de datos tiene una restricción de CLAVE FORÁNEA (FK)
 // que impide borrar un libro que esté referenciado en otras tablas.
 // Esto protege la integridad de los datos históricos.
-//
-// 🔹 En la sustentación puedo decir:
+
 // "La base de datos tiene restricciones de clave foránea que
 //  impiden eliminar un libro que ya tenga ventas o movimientos
 //  registrados. El servidor captura ese error y devuelve un
@@ -391,10 +419,9 @@ exports.eliminarLibro = async (req, res) => {
       });
     }
 
-    // Si el libro tenía imagen de portada, la borramos del disco del servidor
+    // Si el libro tenía imagen de portada, la eliminamos (local o Cloudinary)
     if (portadaActual) {
-      const rutaPortada = path.join(__dirname, '..', 'uploads', 'portadas', portadaActual);
-      fs.unlink(rutaPortada, () => {}); // Ignoramos error si el archivo ya no existe
+      eliminarPortada(portadaActual);
     }
 
     res.json({

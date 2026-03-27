@@ -19,8 +19,7 @@
 //
 // NOTA: Las salidas por VENTAS las registra automáticamente
 // el ventaControlador.js. Este módulo es para movimientos manuales.
-//
-// 🔹 En la sustentación puedo decir:
+
 // "El módulo de movimientos implementa el Kardex del sistema.
 //  Cada entrada o salida se registra con: quién la hizo, cuándo,
 //  el stock anterior y el nuevo, y en el caso de entradas,
@@ -50,8 +49,7 @@ const TIPOS_MOVIMIENTO = {
 // Usa transacción porque afecta dos tablas a la vez:
 //   1. mdc_movimientos → historial del kardex
 //   2. mdc_libros → stock_actual actualizado
-//
-// 🔹 En la sustentación puedo decir:
+
 // "Al registrar un movimiento, el sistema usa una transacción
 //  para garantizar que si falla el UPDATE del stock,
 //  también se deshace el INSERT del historial,
@@ -332,8 +330,7 @@ exports.registrarMovimiento = async (req, res) => {
 //
 // Ejemplo sin filtro:   GET /api/movimientos
 // Ejemplo con filtro:   GET /api/movimientos?libro_id=5
-//
-// 🔹 En la sustentación puedo decir:
+
 // "El historial de movimientos muestra el Kardex completo:
 //  quién hizo cada movimiento, cuándo, el stock antes y después,
 //  y el proveedor en el caso de entradas. Se puede filtrar

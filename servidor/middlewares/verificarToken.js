@@ -25,8 +25,7 @@
 //   2. Este middleware extrae y verifica el token
 //   3. Si es válido: agrega req.usuario y deja pasar (next())
 //   4. Si no es válido: responde con 401 y corta la cadena
-//
-// 🔹 En la sustentación puedo decir:
+
 // "verificarToken es un middleware de autenticación.
 //  Intercepta TODAS las rutas protegidas antes de que
 //  lleguen al controlador. Extrae el token JWT del header,

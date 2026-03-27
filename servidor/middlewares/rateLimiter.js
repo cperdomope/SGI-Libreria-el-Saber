@@ -21,8 +21,7 @@
 // Este archivo define DOS limitadores con umbrales diferentes:
 //   limiterAuth: muy estricto (10 intentos/15min) → para el login
 //   limiterAPI:  permisivo   (500 peticiones/15min) → para todo lo demás
-//
-// 🔹 En la sustentación puedo decir:
+
 // "Implementamos dos niveles de rate limiting con express-rate-limit.
 //  El limitador de autenticación es más estricto porque el login
 //  es el punto de entrada a ataques de fuerza bruta:

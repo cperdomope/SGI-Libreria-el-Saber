@@ -47,6 +47,32 @@ import api from '../services/api';
 // vuelve a estos valores. Es una constante fuera del
 // componente para que no se recree en cada render.
 
+// ─────────────────────────────────────────────────────
+// UTILIDADES DE FORMATO
+// ─────────────────────────────────────────────────────
+// Estan FUERA del componente porque no dependen de ningun estado.
+// Asi se crean una sola vez al cargar el modulo, no en cada render.
+
+// Fecha en formato colombiano corto: DD/MM HH:MM
+const formatearFecha = (fecha) =>
+  new Date(fecha).toLocaleString('es-CO', {
+    month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit'
+  });
+
+// Precio en pesos colombianos: $15.000
+const formatearPrecio = (precio) =>
+  new Intl.NumberFormat('es-CO', {
+    style: 'currency', currency: 'COP', minimumFractionDigits: 0
+  }).format(precio || 0);
+
+// =====================================================
+// ESTADO INICIAL DEL FORMULARIO
+// =====================================================
+// Aqui definimos los valores por defecto del formulario.
+// Cuando se resetea el formulario despues de guardar,
+// vuelve a estos valores.
+
 const FORM_INICIAL = {
   libro_id: '',              // ID del libro seleccionado
   tipo_movimiento: 'ENTRADA', // ENTRADA (compra) o SALIDA (ajuste)
@@ -228,23 +254,6 @@ const Movimientos = () => {
     }
   };
 
-  // ─────────────────────────────────────────────────
-  // FUNCIONES UTILITARIAS (formateo de datos)
-  // ─────────────────────────────────────────────────
-
-  // Formatea una fecha ISO a formato colombiano (DD/MM HH:MM)
-  const formatearFecha = (fecha) =>
-    new Date(fecha).toLocaleString('es-CO', {
-      month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit'
-    });
-
-  // Formatea un número a pesos colombianos (ej: $15.000)
-  const formatearPrecio = (precio) =>
-    new Intl.NumberFormat('es-CO', {
-      style: 'currency', currency: 'COP', minimumFractionDigits: 0
-    }).format(precio || 0);
-
   // =====================================================
   // RENDERIZADO (JSX)
   // =====================================================
@@ -399,12 +408,12 @@ const Movimientos = () => {
                       <span className="input-group-text">COP</span>
                     </div>
                     {/* Cálculo en tiempo real del total de la compra */}
-                    {formData.costo_compra && parseInt(formData.cantidad) > 0 && (
+                    {formData.costo_compra && parseInt(formData.cantidad, 10) > 0 && (
                       <div className="mt-1">
                         <small className="text-success fw-semibold">
                           Total de compra:{' '}
                           {formatearPrecio(
-                            parseFloat(formData.costo_compra) * parseInt(formData.cantidad || 0)
+                            parseFloat(formData.costo_compra) * parseInt(formData.cantidad || '0', 10)
                           )}
                         </small>
                       </div>

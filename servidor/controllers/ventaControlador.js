@@ -15,8 +15,7 @@
 // o no se ejecuta NINGUNA. Si algo falla a mitad del proceso,
 // el sistema "deshace" todo y queda como si nada hubiera pasado.
 // Esto se llama principio ACID (Atomicidad, Consistencia, Aislamiento, Durabilidad).
-//
-// 🔹 En la sustentación puedo decir:
+
 // "El módulo de ventas usa transacciones MySQL para garantizar
 //  que si ocurre un error a mitad de una venta, el inventario
 //  no quede desactualizado ni la venta a medias registrada."
@@ -47,8 +46,7 @@ const METODO_PAGO_DEFAULT = 'Efectivo';
 // y ambos venderlo, quedando el stock en -1 (imposible).
 // El "FOR UPDATE" bloquea la fila del libro para que el segundo
 // vendedor tenga que ESPERAR a que el primero termine.
-//
-// 🔹 En la sustentación puedo decir:
+
 // "Usamos FOR UPDATE para evitar condiciones de carrera.
 //  Si dos ventas ocurren al mismo tiempo para el mismo libro,
 //  MySQL las procesa en orden, garantizando consistencia del stock."
@@ -90,8 +88,7 @@ const validarStockDisponible = async (connection, items) => {
 // =====================================================
 // Ruta: POST /api/ventas
 // Este proceso tiene 8 pasos que se ejecutan como una sola unidad atómica.
-//
-// 🔹 En la sustentación puedo decir:
+
 // "Al registrar una venta, el sistema valida los datos de entrada,
 //  verifica el stock disponible, calcula el total en el servidor
 //  (para evitar manipulaciones desde el frontend), registra la venta
@@ -179,8 +176,7 @@ exports.crearVenta = async (req, res, next) => {
   // Un usuario malicioso podría modificar los datos en el navegador
   // para cambiar el precio (ej: pagar $1 por un libro de $50.000).
   // Por eso, recalculamos el total en el servidor y comparamos.
-  //
-  // 🔹 En la sustentación puedo decir:
+  
   // "Recalculamos el total en el backend como medida de seguridad.
   //  Si el total enviado por el frontend no coincide con el calculado
   //  en el servidor, la venta es rechazada. Esto incluye la validación
@@ -319,8 +315,7 @@ exports.crearVenta = async (req, res, next) => {
 //   - Búsqueda por nombre de cliente
 //   - Filtro por rango de fechas
 //   - Paginación server-side (para no cargar miles de registros de una vez)
-//
-// 🔹 En la sustentación puedo decir:
+
 // "Implementamos paginación en el servidor para que el sistema
 //  sea eficiente aunque haya miles de ventas. En lugar de traer
 //  todo al frontend y paginar ahí, solo traemos los registros
@@ -447,23 +442,14 @@ exports.obtenerVentas = async (req, res, next) => {
 // Devuelve toda la información de una venta específica:
 // datos del cliente, del vendedor, y todos los productos vendidos.
 // Se usa para mostrar el ticket de venta o generar el PDF.
-//
-// 🔹 En la sustentación puedo decir:
+
 // "Al hacer clic en una venta del historial, el sistema hace
 //  dos consultas: una para los datos generales de la venta
 //  y otra para los productos. Así obtenemos el detalle completo
 //  para mostrar o exportar como PDF."
 exports.obtenerDetalleVenta = async (req, res, next) => {
-  let { id } = req.params;
-
-  // Convertimos el ID a número entero y validamos que sea válido
-  id = parseInt(id, 10);
-  if (isNaN(id) || id <= 0) {
-    return res.status(400).json({
-      exito: false,
-      mensaje: 'ID de venta inválido'
-    });
-  }
+  // El middleware validarParametroId ya verifico que el ID sea un numero valido
+  const { id } = req.params;
 
   try {
     // CONSULTA 1: Datos principales de la venta
@@ -538,20 +524,14 @@ exports.obtenerDetalleVenta = async (req, res, next) => {
 // Para mantener la trazabilidad (historial completo de lo que ocurrió).
 // En auditorías o revisiones contables, es importante saber
 // que existió esa venta aunque haya sido anulada.
-//
-// 🔹 En la sustentación puedo decir:
+
 // "Al anular una venta, el sistema no la elimina sino que
 //  cambia su estado a 'Anulada' y devuelve el stock al inventario,
 //  registrando el movimiento en el kardex para trazabilidad.
 //  Todo esto ocurre en una sola transacción."
 exports.anularVenta = async (req, res, next) => {
-  let { id } = req.params;
-
-  // Validamos que el ID sea un número entero positivo
-  id = parseInt(id, 10);
-  if (isNaN(id) || id <= 0) {
-    return res.status(400).json({ exito: false, mensaje: 'ID de venta inválido' });
-  }
+  // El middleware validarParametroId ya verifico que el ID sea un numero valido
+  const { id } = req.params;
 
   let connection;
 

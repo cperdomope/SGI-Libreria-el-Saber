@@ -36,7 +36,7 @@
 //
 // =====================================================
 
-import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 // api: cliente HTTP con Axios (incluye token JWT automáticamente)
 import api from '../services/api';
 // useAuth: para verificar los permisos del usuario (RBAC)
@@ -113,9 +113,12 @@ const ThumbnailPortada = ({ portada, titulo }) => {
     );
   }
 
+  // URL completa (Cloudinary) → usar directamente
+  // Solo nombre de archivo (almacenamiento local anterior) → construir URL
+  const src = portada.startsWith('http') ? portada : `${URL_PORTADAS}/${portada}`;
   return (
     <img
-      src={`${URL_PORTADAS}/${portada}`}
+      src={src}
       alt={titulo}
       style={{ width: 38, height: 52, objectFit: 'cover', borderRadius: 4 }}
       onError={(e) => { e.target.style.display = 'none'; }}
@@ -133,6 +136,11 @@ const Inventario = () => {
 
   // useRef para el botón de cerrar modal (alternativa a document.getElementById)
   const cerrarModalRef = useRef(null);
+  // useRef para el input de archivo — permite resetear el nombre del archivo en el DOM
+  const fileInputRef = useRef(null);
+
+  // Estado para deshabilitar el botón mientras se guarda
+  const [guardando, setGuardando] = useState(false);
 
   // ── ESTADOS: Datos del catálogo (vienen de la BD) ──
   const [libros, setLibros]       = useState([]);     // Lista de todos los libros
@@ -189,17 +197,15 @@ const Inventario = () => {
     try {
       // Promise.all ejecuta las 3 peticiones al mismo tiempo
       const [resLibros, resAutores, resCategorias] = await Promise.all([
-        api.get('/libros'),       // GET /api/libros
-        api.get('/autores'),      // GET /api/autores
-        api.get('/categorias')    // GET /api/categorias
+        api.get('/libros'),
+        api.get('/autores'),
+        api.get('/categorias')
       ]);
 
-      // Extraemos los arrays de las respuestas
       const librosData     = resLibros.data.datos     || resLibros.data;
       const autoresData    = resAutores.data.datos    || resAutores.data;
       const categoriasData = resCategorias.data.datos || resCategorias.data;
 
-      // Guardamos en los estados (solo si son arrays válidos)
       if (Array.isArray(librosData))     setLibros(librosData);
       if (Array.isArray(autoresData))    setAutores(autoresData);
       if (Array.isArray(categoriasData)) setCategorias(categoriasData);
@@ -207,6 +213,17 @@ const Inventario = () => {
       if (import.meta.env.DEV) console.error('[Inventario] Error cargando datos:', err);
     } finally {
       setCargando(false);
+    }
+  }, []);
+
+  // Recarga solo la lista de libros (más rápido — para usar después de crear/editar/eliminar)
+  const cargarSoloLibros = useCallback(async () => {
+    try {
+      const res = await api.get('/libros');
+      const datos = res.data.datos || res.data;
+      if (Array.isArray(datos)) setLibros(datos);
+    } catch (err) {
+      if (import.meta.env.DEV) console.error('[Inventario] Error recargando libros:', err);
     }
   }, []);
 
@@ -219,12 +236,13 @@ const Inventario = () => {
   // FUNCIONES DEL MODAL (Crear / Editar)
   // ─────────────────────────────────────────────────
 
-  // Limpia el estado de la imagen (libera la URL temporal)
+  // Limpia el estado de la imagen (libera la URL temporal y resetea el input)
   const limpiarPortada = () => {
-    // URL.revokeObjectURL libera la memoria de la URL temporal
     if (portadaPreview) URL.revokeObjectURL(portadaPreview);
     setPortadaFile(null);
     setPortadaPreview(null);
+    // Resetea el valor del input en el DOM para que no quede pegado el nombre anterior
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   // Preparar formulario para CREAR un libro nuevo
@@ -284,14 +302,12 @@ const Inventario = () => {
 
   const handleGuardar = async (e) => {
     e.preventDefault();
+    setGuardando(true);
 
     try {
       let peticion;
 
       if (portadaFile) {
-        // ── CON IMAGEN: usar FormData ──
-        // FormData es un objeto especial que permite enviar archivos
-        // junto con datos de texto en la misma petición HTTP
         const formData = new FormData();
         formData.append('isbn',         datosLibro.isbn         || '');
         formData.append('titulo',       datosLibro.titulo);
@@ -299,31 +315,29 @@ const Inventario = () => {
         formData.append('categoria_id', datosLibro.categoria_id || '');
         formData.append('precio_venta', datosLibro.precio_venta);
         formData.append('stock_minimo', datosLibro.stock_minimo || 5);
-        formData.append('portada', portadaFile); // El archivo de imagen
+        formData.append('portada', portadaFile);
 
-        // Indicamos al servidor que es multipart/form-data
         const config = { headers: { 'Content-Type': 'multipart/form-data' } };
-
-        // Si tiene ID → PUT (editar), si no → POST (crear)
         peticion = datosLibro.id
           ? api.put(`/libros/${datosLibro.id}`, formData, config)
           : api.post('/libros', formData, config);
       } else {
-        // ── SIN IMAGEN: JSON normal ──
         peticion = datosLibro.id
           ? api.put(`/libros/${datosLibro.id}`, datosLibro)
           : api.post('/libros', datosLibro);
       }
 
-      await peticion; // Esperamos la respuesta del servidor
+      await peticion;
       alert(datosLibro.id ? 'Libro actualizado correctamente' : 'Libro creado con éxito');
 
-      cargarDatos(); // Recargamos la lista
-      cerrarModalRef.current?.click(); // Cerramos el modal
+      cargarSoloLibros(); // Solo recarga libros, no autores/categorías
+      cerrarModalRef.current?.click();
 
     } catch (error) {
       if (import.meta.env.DEV) console.error('[Inventario] Error al guardar:', error);
       alert(error.response?.data?.mensaje || error.response?.data?.error || 'Error al guardar');
+    } finally {
+      setGuardando(false);
     }
   };
 
@@ -335,8 +349,8 @@ const Inventario = () => {
     if (!window.confirm(`¿Borrar "${titulo}"?`)) return;
 
     try {
-      await api.delete(`/libros/${id}`); // DELETE /api/libros/:id
-      cargarDatos(); // Recargamos la lista
+      await api.delete(`/libros/${id}`);
+      cargarSoloLibros();
     } catch (error) {
       if (import.meta.env.DEV) console.error('[Inventario] Error al eliminar:', error);
       alert(error.response?.data?.mensaje || error.response?.data?.error || 'Error al eliminar');
@@ -519,12 +533,15 @@ const Inventario = () => {
               <h5 className="modal-title">
                 {datosLibro.id ? 'Editar Libro' : 'Registrar Nuevo Libro'}
               </h5>
+              {/* ref={cerrarModalRef} conecta este boton con el useRef.
+                  Asi cerrarModalRef.current.click() cierra el modal
+                  programaticamente despues de guardar un libro */}
               <button
+                ref={cerrarModalRef}
                 type="button"
                 className="btn-close btn-close-white"
                 data-bs-dismiss="modal"
                 aria-label="Cerrar"
-                id="cerrarModalBtn"
               />
             </div>
             <div className="modal-body">
@@ -587,7 +604,7 @@ const Inventario = () => {
                   {datosLibro.id && datosLibro.portada && !portadaPreview && (
                     <div className="mb-2 d-flex align-items-center gap-2">
                       <img
-                        src={`${URL_PORTADAS}/${datosLibro.portada}`}
+                        src={datosLibro.portada.startsWith('http') ? datosLibro.portada : `${URL_PORTADAS}/${datosLibro.portada}`}
                         alt="Portada actual"
                         style={{ height: 70, objectFit: 'cover', borderRadius: 4 }}
                       />
@@ -609,6 +626,7 @@ const Inventario = () => {
 
                   {/* Input de tipo file para seleccionar la imagen */}
                   <input
+                    ref={fileInputRef}
                     type="file"
                     className="form-control"
                     accept="image/jpeg,image/png,image/webp"
@@ -616,10 +634,17 @@ const Inventario = () => {
                   />
                 </div>
 
-                {/* Botón de envío */}
+                {/* Botón de envío — deshabilitado mientras guarda */}
                 <div className="d-grid">
-                  <button type="submit" className="btn btn-primary">
-                    {datosLibro.id ? 'Guardar Cambios' : 'Crear Libro'}
+                  <button type="submit" className="btn btn-primary" disabled={guardando}>
+                    {guardando ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        Guardando...
+                      </>
+                    ) : (
+                      datosLibro.id ? 'Guardar Cambios' : 'Crear Libro'
+                    )}
                   </button>
                 </div>
 

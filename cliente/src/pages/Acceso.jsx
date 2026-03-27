@@ -1,48 +1,80 @@
 // =====================================================
-// PÁGINA: ACCESO (LOGIN)
+// PAGINA: ACCESO (LOGIN) - Punto de entrada del sistema
 // =====================================================
+// Esta es la pagina de inicio de sesion (login) del SGI Libreria El Saber.
+// Es la UNICA ruta publica de toda la aplicacion; todas las demas rutas
+// estan protegidas por los componentes RutaProtegida y RutaProtegidaPorRol.
 //
-// ¿Para qué sirve este archivo?
-//   Es la página de inicio de sesión del sistema.
-//   El usuario ingresa su correo y contraseña, y si son
-//   correctos, el backend devuelve un token JWT que se
-//   guarda en el AuthContext para todas las demás peticiones.
+// Flujo de autenticacion completo:
+//   1. El usuario ingresa email y contrasena en el formulario
+//   2. react-hook-form valida los campos en el frontend (UX inmediata)
+//   3. Si la validacion pasa, se envia POST /api/auth/login al backend
+//   4. El backend verifica las credenciales contra la BD (bcrypt)
+//   5. Si son correctas, genera un token JWT y lo devuelve con los datos
+//   6. Llamamos a login() del AuthContext para guardar usuario + token
+//   7. Se redirige al usuario a la pagina principal del sistema
 //
-// ¿Cómo se conecta con el sistema?
-//   1. Se renderiza en la ruta /acceso (ver App.jsx)
-//   2. Es la ÚNICA ruta pública (no requiere autenticación)
-//   3. Llama a POST /api/auth/login con { email, password }
-//   4. Si es exitoso, recibe { usuario, token }
-//   5. Llama a login() del AuthContext para guardar la sesión
-//   6. Redirige al usuario a la página principal
+// Seguridad implementada:
+//   - Bloqueo de cuenta: tras 3 intentos fallidos consecutivos, el backend
+//     bloquea la cuenta y responde con { bloqueado: true }
+//   - Barra visual de intentos: muestra cuantos intentos le quedan al usuario
+//   - Validacion dual: frontend (UX) + backend (seguridad real)
 //
-// Conceptos clave para el jurado:
-//   - react-hook-form: librería que maneja formularios de forma
-//     declarativa (register, handleSubmit, errors)
-//   - Bloqueo de cuenta: tras 3 intentos fallidos, el backend
-//     bloquea la cuenta por seguridad
-//   - Validación en tiempo real: los errores se muestran al
-//     perder el foco del campo (mode: 'onTouched')
-//
+// Conceptos clave aplicados:
+//   - react-hook-form: libreria que simplifica el manejo de formularios
+//     en React. En lugar de manejar cada campo con useState + onChange,
+//     react-hook-form usa "register" para conectar inputs directamente
+//     y "handleSubmit" para validar antes de enviar.
+//   - lazy() + Suspense: carga diferida de componentes pesados (documentacion)
+//     para que no afecten la velocidad de carga inicial del login.
+//   - SVG inline: los iconos se definen como componentes JSX en lugar de
+//     importar una libreria de iconos completa, reduciendo el bundle size.
 // =====================================================
 
-import React, { useState, lazy, Suspense } from 'react';
-// react-hook-form: manejo declarativo de formularios con validación
+// useState: estado local para controlar la UI (loading, errores, etc.)
+// lazy: funcion de React para importar componentes de forma diferida.
+//   En lugar de cargar el componente inmediatamente con "import X from Y",
+//   lazy() lo carga SOLO cuando se necesita renderizar por primera vez.
+//   Esto se llama "code splitting" (division de codigo) y reduce el
+//   tamano del bundle inicial que descarga el navegador.
+// Suspense: componente que muestra un fallback (spinner) mientras el
+//   componente lazy se esta descargando. Es obligatorio envolver
+//   componentes lazy con Suspense; sin el, React lanza un error.
+import { useState, lazy, Suspense } from 'react';
+
+// react-hook-form: libreria especializada en formularios para React.
+// A diferencia de manejar formularios con useState (controlados), RHF usa
+// refs internamente (no controlados), lo que reduce los re-renders y mejora
+// el rendimiento. Nos da:
+//   - register: funcion que conecta un input con sus reglas de validacion
+//   - handleSubmit: wrapper que valida todo antes de llamar nuestra funcion
+//   - formState.errors: objeto con los errores de validacion por campo
 import { useForm } from 'react-hook-form';
-// useNavigate: para redirigir al usuario después del login
-import { useNavigate } from 'react-router-dom';
-// api: cliente HTTP con Axios
+
+// api: instancia de Axios preconfigurada con la URL base del servidor
+// y un interceptor que agrega automaticamente el token JWT en cada peticion.
 import api from '../services/api';
-// useAuth: contexto global de autenticación
+
+// useAuth: hook personalizado que nos da acceso al contexto global de
+// autenticacion. De aqui usamos la funcion login() para guardar la sesion.
 import { useAuth } from '../context/AuthContext';
 
-// ── Componentes de documentación (carga diferida para no afectar el login) ──
+// -- Componentes de documentacion (carga diferida) --
+// Cada lazy() recibe una funcion que retorna un import() dinamico.
+// Webpack/Vite crean un "chunk" separado para cada uno de estos componentes,
+// que solo se descarga cuando el usuario abre el modal de documentacion.
+// Esto es importante porque los manuales son pesados y no tiene sentido
+// cargarlos si el usuario solo quiere iniciar sesion.
 const DocumentacionHistorias = lazy(() => import('./DocumentacionHistorias'));
 const DocumentacionCriterios = lazy(() => import('./DocumentacionCriterios'));
 const DocumentacionManualTecnico = lazy(() => import('./DocumentacionManualTecnico'));
 const DocumentacionManualUsuario = lazy(() => import('./DocumentacionManualUsuario'));
 
-// ── Iconos SVG en línea para el formulario ──
+// -- Iconos SVG en linea para el formulario --
+// En lugar de usar una libreria de iconos como FontAwesome o react-icons
+// (que agregarian peso al bundle), definimos los iconos directamente como
+// componentes funcionales que retornan SVG. Cada SVG usa "fill=currentColor"
+// para heredar el color del texto del elemento padre (CSS inheritance).
 const Icons = {
   // Icono de libro (logo del sistema)
   Book: () => (
@@ -79,89 +111,110 @@ const Icons = {
   )
 };
 
-// ── Máximo de intentos antes del bloqueo ──
+// -- Constante: maximo de intentos antes del bloqueo --
+// Se define fuera del componente porque es un valor fijo que no cambia.
+// Al ser constante, se declara en UPPER_SNAKE_CASE por convencion de JavaScript.
 const MAX_INTENTOS = 3;
 
 // =====================================================
-// COMPONENTE PRINCIPAL
+// COMPONENTE PRINCIPAL: Acceso (pagina de login)
 // =====================================================
+// Es un componente funcional (arrow function). En React moderno,
+// los componentes funcionales son el estandar; los componentes de
+// clase (class Component) ya casi no se usan desde la llegada de los Hooks.
 
 const Acceso = () => {
 
-  // ─────────────────────────────────────────────────
-  // react-hook-form: inicialización
-  // ─────────────────────────────────────────────────
-  // useForm() nos da 3 cosas principales:
-  //   - register: conecta cada input con sus reglas de validación
-  //   - handleSubmit: previene envío si hay errores de validación
-  //   - errors: objeto con los mensajes de error por campo
+  // -- react-hook-form: inicializacion del formulario --
+  // useForm() retorna un objeto con multiples utilidades. Usamos
+  // desestructuracion para extraer solo las 3 que necesitamos:
+  //   - register: conecta cada <input> con sus reglas de validacion
+  //   - handleSubmit: funcion que valida todo ANTES de llamar nuestra funcion
+  //   - formState.errors: objeto con los errores activos por campo
   //
-  // mode: 'onTouched' → valida cuando el usuario sale del campo
-  // (no mientras escribe, para no ser molesto)
+  // mode: 'onTouched' significa que la validacion se ejecuta cuando el
+  // usuario SALE del campo (evento blur), no mientras escribe. Esto evita
+  // mostrar errores prematuros que confundan al usuario.
+  // Otros modos posibles: 'onChange' (al escribir), 'onSubmit' (solo al enviar),
+  // 'onBlur' (similar a onTouched pero sin revalidar al cambiar), 'all'.
   const {
     register,
     handleSubmit,
     formState: { errors }
   } = useForm({ mode: 'onTouched' });
 
-  // ── ESTADOS de la interfaz (no manejados por react-hook-form) ──
-  const [mostrarPassword, setMostrarPassword] = useState(false);     // Toggle ver/ocultar contraseña
-  const [loading, setLoading]                 = useState(false);     // Spinner del botón
-  const [intentosRestantes, setIntentosRestantes] = useState(null);  // Contador de intentos (null = no mostrar)
-  const [bloqueado, setBloqueado]             = useState(false);     // true = cuenta bloqueada
-  const [errorServidor, setErrorServidor]     = useState('');        // Mensaje de error del backend
-  const [mensajeDetallado, setMensajeDetallado] = useState('');      // Detalle del error
-  const [mostrarDocs, setMostrarDocs]         = useState(false);     // Modal de documentación
-  const [tabActiva, setTabActiva]             = useState('historias'); // Pestaña activa de docs
+  // -- Estados locales de la interfaz --
+  // Estos estados controlan aspectos visuales que react-hook-form no maneja.
+  // Cada useState retorna un par [valor, funcion_para_cambiar_valor].
+  const [mostrarPassword, setMostrarPassword] = useState(false);     // Toggle ver/ocultar contrasena
+  const [loading, setLoading]                 = useState(false);     // Spinner del boton de envio
+  const [intentosRestantes, setIntentosRestantes] = useState(null);  // null = no mostrar barra
+  const [bloqueado, setBloqueado]             = useState(false);     // true = cuenta bloqueada por intentos
+  const [errorServidor, setErrorServidor]     = useState('');        // Mensaje principal de error
+  const [mensajeDetallado, setMensajeDetallado] = useState('');      // Detalle adicional del error
+  const [mostrarDocs, setMostrarDocs]         = useState(false);     // Controla visibilidad del modal docs
+  const [tabActiva, setTabActiva]             = useState('historias'); // Pestana activa en modal docs
 
-  // login: función del AuthContext que guarda usuario + token
-  const { login }    = useAuth();
-  // navigate: para redirigir después del login (no usado aquí, se usa window.location)
-  const navigate     = useNavigate();
+  // -- Hook de autenticacion global --
+  // login() es la funcion del AuthContext que guarda el usuario y el token
+  // JWT en el estado global + localStorage para persistencia entre recargas.
+  const { login } = useAuth();
 
-  // ─────────────────────────────────────────────────
-  // FUNCIÓN: handleLogin (se ejecuta al enviar el formulario)
-  // ─────────────────────────────────────────────────
-  // Solo se llama si react-hook-form validó todos los campos OK.
-  // Recibe { email, password } directamente de RHF.
-
-  const handleLogin = async ({ email, password }) => {
+  // -- Funcion: manejarLogin (se ejecuta al enviar el formulario) --
+  // Esta funcion SOLO se llama si react-hook-form valido todos los campos
+  // exitosamente. RHF le pasa los valores como objeto: { email, password }.
+  // Es async porque necesitamos esperar la respuesta del servidor (await).
+  const manejarLogin = async ({ email, password }) => {
+    // Activamos el spinner y limpiamos errores anteriores
     setLoading(true);
     setErrorServidor('');
 
     try {
-      // POST /api/auth/login → envía credenciales al backend
+      // POST /api/auth/login: envia las credenciales al backend.
+      // api.post() es un wrapper de Axios que ya tiene configurada
+      // la URL base del servidor (ej: http://localhost:3001/api).
       const res = await api.post('/auth/login', { email, password });
 
-      // Si es exitoso, el backend devuelve { usuario, token }
-      // Guardamos la sesión en el AuthContext
+      // Si llega aqui, la autenticacion fue exitosa.
+      // El backend responde con { usuario: {...}, token: "jwt..." }
+      // Guardamos ambos en el AuthContext para uso global.
       login(res.data.usuario, res.data.token);
 
-      // Redirigimos a la página principal (recarga completa)
+      // Redirigimos a la pagina principal con recarga completa.
+      // Usamos window.location.href en lugar de navigate() de React Router
+      // para forzar una recarga completa del DOM, asegurando que todos
+      // los componentes lean el nuevo estado de autenticacion desde cero.
       window.location.href = '/';
 
     } catch (err) {
-      // ── Manejo de errores del backend ──
+      // -- Manejo de errores del backend --
+      // err.response?.data usa encadenamiento opcional (?.) porque si el
+      // servidor esta caido, err.response sera undefined y sin ?. lanzaria
+      // "Cannot read properties of undefined".
       const errorData = err.response?.data;
 
       if (errorData?.bloqueado) {
-        // Caso 1: Cuenta bloqueada (3 intentos fallidos)
+        // Caso 1: Cuenta bloqueada (supero el maximo de intentos)
         setBloqueado(true);
         setIntentosRestantes(0);
         setMensajeDetallado(errorData.error);
       } else if (errorData?.intentosRestantes !== undefined) {
-        // Caso 2: Credenciales incorrectas pero aún tiene intentos
+        // Caso 2: Credenciales incorrectas pero aun tiene intentos.
+        // Usamos !== undefined (no solo truthy) porque intentosRestantes
+        // podria ser 0, que es falsy pero es un valor valido.
         setIntentosRestantes(errorData.intentosRestantes);
         setMensajeDetallado(errorData.mensaje || errorData.error);
         setBloqueado(false);
       } else {
-        // Caso 3: Error de conexión u otro error
-        setMensajeDetallado(errorData?.error || 'No se pudo conectar al servidor. Intente más tarde.');
+        // Caso 3: Error de conexion u otro error inesperado
+        setMensajeDetallado(errorData?.error || 'No se pudo conectar al servidor. Intente mas tarde.');
         setBloqueado(false);
       }
 
-      setErrorServidor(errorData?.error || 'Error de autenticación');
+      setErrorServidor(errorData?.error || 'Error de autenticacion');
     } finally {
+      // finally se ejecuta SIEMPRE, sea exito o error.
+      // Desactivamos el spinner del boton en cualquier caso.
       setLoading(false);
     }
   };
@@ -169,12 +222,22 @@ const Acceso = () => {
   // =====================================================
   // RENDERIZADO (JSX)
   // =====================================================
+  // Todo lo que retorna el componente es JSX, una extension de sintaxis
+  // que permite escribir HTML dentro de JavaScript. JSX se compila a
+  // llamadas React.createElement() por el bundler (Vite en este caso).
 
   return (
     <div className="login-container">
+      {/* login-card y fade-in son clases CSS personalizadas definidas
+          en los estilos globales. fade-in aplica una animacion de entrada. */}
       <div className="login-card fade-in">
 
-        {/* ── BOTÓN DOCUMENTACIÓN (parte superior, llamativo) ── */}
+        {/* -- BOTON DOCUMENTACION (parte superior) --
+            type="button" es importante aqui: sin el, un boton dentro de
+            un formulario se comporta como type="submit" por defecto,
+            lo que enviaria el formulario al hacer clic.
+            Los estilos inline (style={{}}) se usan aqui porque son
+            especificos de este unico boton y no se reutilizan. */}
         <div className="text-center mb-3">
           <button
             type="button"
@@ -198,32 +261,39 @@ const Acceso = () => {
             }}
             onClick={() => setMostrarDocs(true)}
           >
-            📚 Documentación del Proyecto
+            Documentacion del Proyecto
           </button>
         </div>
 
-        {/* ── ENCABEZADO: Logo + título ── */}
+        {/* -- ENCABEZADO: Logo + titulo -- */}
         <div className="login-header">
           <div className="login-icon">
             <Icons.Book />
           </div>
           <h2 className="fw-bold text-dark">Bienvenido</h2>
-          <p className="text-muted">Sistema de Gestión Librería el Saber</p>
+          <p className="text-muted">Sistema de Gestion Libreria el Saber</p>
         </div>
 
-        {/* ── ALERTA DE ERROR DEL SERVIDOR ── */}
-        {/* Se muestra cuando el backend devuelve un error */}
+        {/* -- ALERTA DE ERROR DEL SERVIDOR --
+            Renderizado condicional: {condicion && <JSX>} es un patron comun
+            en React. Si errorServidor es "" (falsy), React no renderiza nada.
+            Si tiene texto (truthy), renderiza la alerta.
+            role="alert" es un atributo ARIA que indica a los lectores de
+            pantalla que este contenido es importante y debe anunciarse. */}
         {errorServidor && (
           <div className={`alert ${bloqueado ? 'alert-danger' : 'alert-warning'} mb-4`} role="alert">
             <div className="d-flex align-items-start">
               <div className="flex-grow-1">
                 <strong className="d-block mb-1">
-                  {bloqueado ? 'Cuenta Bloqueada' : 'Error de Autenticación'}
+                  {bloqueado ? 'Cuenta Bloqueada' : 'Error de Autenticacion'}
                 </strong>
                 <p className="mb-2 small">{mensajeDetallado || errorServidor}</p>
 
-                {/* Barra de progreso de intentos restantes */}
-                {/* Se muestra solo si hay intentos y no está bloqueado */}
+                {/* Barra visual de intentos restantes.
+                    El ancho se calcula como porcentaje: (restantes / total) * 100.
+                    El color cambia segun la urgencia:
+                      2 intentos = verde, 1 = amarillo, 0 = rojo.
+                    Esto es UX: el usuario percibe visualmente el peligro. */}
                 {intentosRestantes !== null && !bloqueado && (
                   <div className="mt-2">
                     <div className="progress" style={{ height: '8px' }}>
@@ -245,28 +315,32 @@ const Acceso = () => {
           </div>
         )}
 
-        {/* ══════════════════════════════════════════════
-            FORMULARIO DE LOGIN
-            ══════════════════════════════════════════════
-            handleSubmit de react-hook-form funciona así:
-            1. Ejecuta las reglas de validación de cada register()
-            2. Si hay errores → muestra mensajes y NO llama handleLogin
-            3. Si todo es válido → llama handleLogin({ email, password })
+        {/* -- FORMULARIO DE LOGIN --
+            handleSubmit es la funcion de react-hook-form que:
+              1. Ejecuta las reglas de validacion de cada campo registrado
+              2. Si hay errores, los pone en formState.errors y NO llama nuestra funcion
+              3. Si todo pasa, llama manejarLogin({ email, password })
 
-            noValidate: desactiva la validación nativa del navegador
-            (usamos la de react-hook-form que es más personalizable) */}
-        <form onSubmit={handleSubmit(handleLogin)} noValidate>
+            noValidate: desactiva la validacion HTML5 nativa del navegador
+            (los tooltips del navegador). Usamos la de react-hook-form porque
+            es mas personalizable y consistente entre navegadores. */}
+        <form onSubmit={handleSubmit(manejarLogin)} noValidate>
 
-          {/* ── CAMPO: EMAIL ── */}
+          {/* -- CAMPO: EMAIL --
+              input-group de Bootstrap permite agrupar un icono + input + feedback
+              en una sola linea visual. has-validation asegura que los bordes
+              redondeados se apliquen correctamente cuando hay mensajes de error. */}
           <div className="mb-4">
-            <label className="form-label fw-bold small text-muted">CORREO ELECTRÓNICO</label>
+            <label className="form-label fw-bold small text-muted">CORREO ELECTRONICO</label>
             <div className="input-group has-validation">
               <span className="input-group-text bg-light border-end-0 text-muted">
                 <Icons.User />
               </span>
-              {/* register() conecta este input con sus reglas:
-                  - required: campo obligatorio
-                  - pattern: debe tener formato de email válido */}
+              {/* register('email', reglas) conecta este input con RHF:
+                  - El primer argumento es el nombre del campo en el formulario
+                  - El segundo es un objeto con las reglas de validacion
+                  - El spread (...) expande las props que RHF necesita
+                    (ref, onChange, onBlur, name) directamente en el input */}
               <input
                 type="email"
                 className={`form-control border-start-0 bg-light ${errors.email ? 'is-invalid' : ''}`}
@@ -274,30 +348,33 @@ const Acceso = () => {
                 disabled={loading}
                 autoComplete="email"
                 {...register('email', {
-                  required: 'El correo electrónico es obligatorio',
+                  required: 'El correo electronico es obligatorio',
                   pattern: {
                     value: /\S+@\S+\.\S+/,
-                    message: 'El formato del correo no es válido'
+                    message: 'El formato del correo no es valido'
                   }
                 })}
               />
-              {/* Mensaje de error debajo del campo (solo si hay error) */}
+              {/* invalid-feedback de Bootstrap se muestra automaticamente
+                  cuando el input hermano tiene la clase is-invalid */}
               {errors.email && (
                 <div className="invalid-feedback">{errors.email.message}</div>
               )}
             </div>
           </div>
 
-          {/* ── CAMPO: CONTRASEÑA ── */}
+          {/* -- CAMPO: CONTRASENA --
+              El type alterna entre 'text' y 'password' segun el estado
+              mostrarPassword. Esto es lo que permite ver/ocultar la clave. */}
           <div className="mb-4">
-            <label className="form-label fw-bold small text-muted">CONTRASEÑA</label>
+            <label className="form-label fw-bold small text-muted">CONTRASENA</label>
             <div className="input-group has-validation">
               <span className="input-group-text bg-light border-end-0 text-muted">
                 <Icons.Lock />
               </span>
-              {/* register() con reglas:
-                  - required: campo obligatorio
-                  - minLength: mínimo 4 caracteres */}
+              {/* minLength: 8 valida que la contrasena tenga al menos
+                  8 caracteres. Esta validacion es solo de UX (frontend);
+                  el backend tambien valida por seguridad (validacion dual). */}
               <input
                 type={mostrarPassword ? 'text' : 'password'}
                 className={`form-control border-start-0 border-end-0 bg-light ${errors.password ? 'is-invalid' : ''}`}
@@ -305,19 +382,21 @@ const Acceso = () => {
                 disabled={loading}
                 autoComplete="current-password"
                 {...register('password', {
-                  required: 'La contraseña es obligatoria',
+                  required: 'La contrasena es obligatoria',
                   minLength: {
-                    value: 4,
-                    message: 'La contraseña debe tener al menos 4 caracteres'
+                    value: 8,
+                    message: 'La contrasena debe tener al menos 8 caracteres'
                   }
                 })}
               />
-              {/* Botón para mostrar/ocultar la contraseña */}
+              {/* Boton toggle para ver/ocultar contrasena.
+                  Usa un operador ternario para alternar entre los dos iconos.
+                  aria-label proporciona texto accesible para lectores de pantalla. */}
               <button
                 className="btn btn-light border border-start-0 text-muted"
                 type="button"
                 onClick={() => setMostrarPassword(!mostrarPassword)}
-                aria-label={mostrarPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                aria-label={mostrarPassword ? 'Ocultar contrasena' : 'Mostrar contrasena'}
               >
                 {mostrarPassword ? <Icons.EyeSlash /> : <Icons.Eye />}
               </button>
@@ -327,11 +406,13 @@ const Acceso = () => {
             </div>
           </div>
 
-          {/* ── BOTÓN DE ENVÍO ── */}
-          {/* Cambia de aspecto según el estado:
-              - Normal: "INGRESAR AL SISTEMA" (azul)
-              - Cargando: spinner + "Validando..."
-              - Bloqueado: "CUENTA BLOQUEADA" (rojo, deshabilitado) */}
+          {/* -- BOTON DE ENVIO --
+              Renderizado condicional con ternarios encadenados (condicion ? A : B):
+                1. Si bloqueado → texto "CUENTA BLOQUEADA" (btn-danger = rojo)
+                2. Si loading → spinner animado + "Validando..."
+                3. Si ninguno → texto normal "INGRESAR AL SISTEMA"
+              disabled={loading || bloqueado} evita doble clic o envio con cuenta bloqueada.
+              d-grid hace que el boton ocupe el 100% del ancho (display: grid). */}
           <div className="d-grid gap-2">
             <button
               type="submit"
@@ -352,19 +433,23 @@ const Acceso = () => {
           </div>
         </form>
 
-        {/* ── PIE DE PÁGINA ── */}
+        {/* -- PIE DE PAGINA -- */}
         <div className="text-center mt-4">
-          <small className="text-muted">Librería el Saber &copy; 2026</small>
+          <small className="text-muted">Libreria el Saber &copy; 2026</small>
         </div>
       </div>
 
-      {/* ══════════════════════════════════════════════
-          MODAL DE DOCUMENTACIÓN
-          Se muestra cuando el usuario hace clic en
-          "Documentación del Proyecto". Tiene 4 pestañas
-          con carga diferida (lazy) para no afectar
-          la velocidad del login.
-          ══════════════════════════════════════════════ */}
+      {/* -- MODAL DE DOCUMENTACION --
+          Este modal se implementa manualmente con Bootstrap CSS (no el JS de Bootstrap).
+          La logica de mostrar/ocultar la controlamos con el estado mostrarDocs.
+
+          Patron "cerrar al hacer clic en el fondo":
+          e.target === e.currentTarget verifica que el clic fue en el overlay oscuro
+          y NO en el contenido del modal. e.target es donde se hizo clic,
+          e.currentTarget es el elemento que tiene el evento (el overlay).
+
+          Suspense envuelve los componentes lazy. Mientras se descargan,
+          muestra el fallback (spinner). Sin Suspense, React lanzaria error. */}
       {mostrarDocs && (
         <div
           className="modal show d-block"
@@ -375,17 +460,19 @@ const Acceso = () => {
           <div className="modal-dialog modal-xl modal-dialog-scrollable" style={{ maxWidth: '95vw', maxHeight: '95vh' }}>
             <div className="modal-content" style={{ maxHeight: '95vh' }}>
               <div className="modal-header bg-primary text-white">
-                <h5 className="modal-title">Documentación del Proyecto — SGI Librería El Saber</h5>
+                <h5 className="modal-title">Documentacion del Proyecto — SGI Libreria El Saber</h5>
                 <button type="button" className="btn-close btn-close-white" onClick={() => setMostrarDocs(false)} />
               </div>
 
-              {/* Pestañas de navegación */}
+              {/* Pestanas de navegacion renderizadas con .map() sobre un array
+                  de configuracion. Esto es mas limpio que escribir 4 <li> manuales
+                  y facilita agregar o quitar pestanas en el futuro (principio DRY). */}
               <div className="modal-header p-0 border-0">
                 <ul className="nav nav-tabs w-100 border-0">
                   {[
                     { key: 'historias', label: 'Historias de Usuario' },
-                    { key: 'criterios', label: 'Criterios de Aceptación' },
-                    { key: 'tecnico', label: 'Manual Técnico' },
+                    { key: 'criterios', label: 'Criterios de Aceptacion' },
+                    { key: 'tecnico', label: 'Manual Tecnico' },
                     { key: 'usuario', label: 'Manual de Usuario' }
                   ].map(tab => (
                     <li className="nav-item" key={tab.key}>
@@ -401,12 +488,14 @@ const Acceso = () => {
                 </ul>
               </div>
 
-              {/* Contenido de la pestaña activa */}
+              {/* Contenido de la pestana activa.
+                  Solo se renderiza el componente cuya key coincide con tabActiva.
+                  Los demas ni se montan en el DOM (short-circuit evaluation). */}
               <div className="modal-body" style={{ overflowY: 'auto' }}>
                 <Suspense fallback={
                   <div className="text-center py-5">
                     <div className="spinner-border text-primary" role="status" />
-                    <p className="mt-2 text-muted">Cargando documentación...</p>
+                    <p className="mt-2 text-muted">Cargando documentacion...</p>
                   </div>
                 }>
                   {tabActiva === 'historias' && <DocumentacionHistorias />}

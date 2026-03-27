@@ -28,8 +28,9 @@ const router = express.Router();
 const proveedorControlador = require('../controllers/proveedorControlador');
 
 // Importamos los middlewares de seguridad
-const verificarToken = require('../middlewares/verificarToken');       // Verifica autenticación JWT
+const verificarToken = require('../middlewares/verificarToken');       // Verifica autenticacion JWT
 const { soloAdministrador } = require('../middlewares/verificarRol');  // Solo Admin (rol_id = 1)
+const { validarId } = require('../middlewares/validarParametroId'); // Valida que :id sea un numero entero valido
 
 // ─────────────────────────────────────────────────────
 // RUTA GET: Listar todos los proveedores
@@ -46,13 +47,13 @@ router.post('/', verificarToken, soloAdministrador, proveedorControlador.crearPr
 // RUTA PUT: Actualizar datos de un proveedor
 // ─────────────────────────────────────────────────────
 // Params: :id → ID del proveedor a modificar
-router.put('/:id', verificarToken, soloAdministrador, proveedorControlador.actualizarProveedor);
+router.put('/:id', verificarToken, soloAdministrador, validarId('proveedor'), proveedorControlador.actualizarProveedor);
 
 // ─────────────────────────────────────────────────────
 // RUTA DELETE: Eliminar un proveedor
 // ─────────────────────────────────────────────────────
 // Params: :id → ID del proveedor a eliminar
-router.delete('/:id', verificarToken, soloAdministrador, proveedorControlador.eliminarProveedor);
+router.delete('/:id', verificarToken, soloAdministrador, validarId('proveedor'), proveedorControlador.eliminarProveedor);
 
 // Exportamos el router para que app.js lo monte en /api/proveedores
 module.exports = router;

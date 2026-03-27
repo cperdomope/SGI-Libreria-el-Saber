@@ -5,8 +5,6 @@
 // Se encarga de dos cosas principales:
 //   1. Registrar nuevos usuarios
 //   2. Verificar quién puede entrar (login) y darle un pase (token JWT)
-//
-// 🔹 En la sustentación puedo decir:
 // "El controlador de autenticación gestiona el acceso al sistema.
 //  Usa bcrypt para proteger las contraseñas y JWT para mantener
 //  la sesión activa sin necesidad de consultar la base de datos
@@ -41,8 +39,7 @@ if (!process.env.JWT_SECRET) {
 // miles de contraseñas automáticamente hasta acertar.
 // Para evitarlo, bloqueamos el acceso temporalmente
 // después de varios intentos fallidos.
-//
-// 🔹 En la sustentación puedo decir:
+
 // "Implementamos protección anti-fuerza bruta que bloquea
 //  una cuenta por 3 minutos después de 3 intentos fallidos,
 //  lo que hace inviable un ataque automatizado."
@@ -191,8 +188,6 @@ const limpiarIntentos = (email) => {
 // Ruta: POST /api/auth/registro
 // Permite crear un nuevo usuario en el sistema.
 // Solo el administrador debería poder acceder a esta ruta (se controla en las rutas).
-//
-// 🔹 En la sustentación puedo decir:
 // "El proceso de registro valida los datos, verifica que el correo
 //  no esté duplicado, encripta la contraseña con bcrypt y guarda
 //  el usuario en la base de datos."
@@ -217,6 +212,12 @@ exports.registro = async (req, res, next) => {
     // para evitar duplicados como "Juan@GMAIL.com" vs "juan@gmail.com"
     const nombreNormalizado = nombre_completo.trim();
     const emailNormalizado  = email.trim().toLowerCase();
+
+    // Validar formato del email con expresión regular
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailNormalizado)) {
+      return res.status(400).json({ error: 'El formato del email no es válido', exito: false });
+    }
 
     // La contraseña debe tener al menos 8 caracteres por seguridad
     if (password.length < 8) {
@@ -246,7 +247,7 @@ exports.registro = async (req, res, next) => {
     // "$2a$10$xK9p3...qM7" — un hash irreversible.
     // Si alguien roba la base de datos, no puede ver las contraseñas reales.
     //
-    // 🔹 En la sustentación puedo decir:
+  
     // "Usamos bcrypt con 10 salt rounds para hashear las contraseñas.
     //  Esto significa que aunque alguien obtenga acceso a la base de datos,
     //  no puede recuperar las contraseñas originales."
@@ -300,8 +301,7 @@ exports.registro = async (req, res, next) => {
 // =====================================================
 // Ruta: POST /api/auth/login
 // Verifica las credenciales y, si son correctas, entrega un token JWT.
-//
-// 🔹 En la sustentación puedo decir:
+
 // "El login verifica la contraseña con bcrypt, aplica protección
 //  anti-fuerza bruta y genera un token JWT que el frontend guarda
 //  en localStorage para identificar al usuario en futuras peticiones."
@@ -388,8 +388,7 @@ exports.login = async (req, res, next) => {
     // bcrypt.compare() NO desencripta el hash (eso es imposible).
     // Lo que hace es aplicar el mismo proceso de hash a la contraseña
     // ingresada y verifica si el resultado coincide con el hash guardado.
-    //
-    // 🔹 En la sustentación puedo decir:
+    
     // "bcrypt.compare() verifica la contraseña de forma segura
     //  sin necesidad de desencriptar el hash. El algoritmo aplica
     //  el mismo proceso y compara los resultados."
@@ -417,6 +416,18 @@ exports.login = async (req, res, next) => {
     limpiarIntentos(emailNormalizado);
 
     // ─────────────────────────────────────────────────
+    // PASO 7.5: Registrar la fecha y hora del último acceso
+    // Actualizamos el campo ultimo_acceso en la base de datos
+    // para que el administrador pueda ver cuándo fue la última
+    // vez que cada usuario inició sesión en el sistema.
+    // NOW() es una función de MySQL que devuelve la fecha y hora actual.
+    // ─────────────────────────────────────────────────
+    await db.query(
+      'UPDATE mdc_usuarios SET ultimo_acceso = NOW() WHERE id = ?',
+      [usuario.id]
+    );
+
+    // ─────────────────────────────────────────────────
     // PASO 8: Generar el token JWT (carné digital del usuario)
     //
     // ¿Qué es un JWT?
@@ -427,8 +438,7 @@ exports.login = async (req, res, next) => {
     //
     // Incluimos en el payload solo lo necesario para no exponer datos sensibles.
     // El frontend leerá este token para saber quién es el usuario y qué puede hacer.
-    //
-    // 🔹 En la sustentación puedo decir:
+    
     // "El JWT que generamos incluye el id, rol y nombre del usuario.
     //  Tiene una duración de 8 horas y está firmado con HS256 usando
     //  una clave secreta del servidor. Esto garantiza que el token

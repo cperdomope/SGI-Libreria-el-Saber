@@ -38,9 +38,11 @@
 //
 // =====================================================
 
-import React from 'react';
+// En React 19 con Vite no es necesario importar React explicitamente.
+// El JSX transform automatico se encarga de eso.
+
 // BrowserRouter: habilita el enrutamiento SPA (Single Page Application)
-// Routes/Route: definen qué componente mostrar en cada URL
+// Routes/Route: definen que componente mostrar en cada URL
 // Navigate: redirige a otra ruta (como un redirect)
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 

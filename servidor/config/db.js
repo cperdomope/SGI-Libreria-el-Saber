@@ -24,13 +24,7 @@
 // ¿Por qué mysql2 y no mysql?
 // mysql2 es la librería moderna: más rápida, soporta Promises
 // de forma nativa (con .promise()), y es compatible con ES2017+.
-//
-// 🔹 En la sustentación puedo decir:
-// "Usamos un pool de conexiones MySQL con mysql2/promise.
-//  El pool mantiene hasta 10 conexiones abiertas simultáneas,
-//  lo que es suficiente para el volumen de una librería pequeña.
-//  Las credenciales vienen de variables de entorno (.env)
-//  para no exponer datos sensibles en el código fuente."
+
 // =====================================================
 
 const mysql = require('mysql2');

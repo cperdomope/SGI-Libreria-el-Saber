@@ -1,13 +1,32 @@
-import React from 'react';
+// =====================================================
+// PAGINA: Historias de Usuario (Documentacion SENA)
+// =====================================================
+// En la metodologia agil (Scrum), las Historias de Usuario (HU) describen
+// funcionalidades del sistema desde la perspectiva del usuario final.
+// Siguen el formato estandar:
+//   "COMO [rol], QUIERO [accion], PARA [beneficio]"
+//
+// Este formato responde tres preguntas fundamentales:
+//   - QUIEN necesita la funcionalidad (rol/actor)
+//   - QUE necesita hacer (la accion concreta)
+//   - POR QUE lo necesita (el valor de negocio)
+//
+// Cada HU tiene ademas una prioridad (Alta, Media, Baja) que define
+// el orden de desarrollo en el Sprint Backlog del proyecto.
+//
+// Este componente se carga con lazy() desde Acceso.jsx, asi que solo
+// se descarga cuando el usuario abre el modal de documentacion.
+//
+// Conceptos aplicados:
+//   - Datos estaticos fuera del componente (optimizacion de renders)
+//   - reduce() para agrupar array plano en objeto por modulo
+//   - Object.entries() + .map() para iterar objetos en JSX
+//   - Template literals para clases CSS dinamicas
+// =====================================================
 
-// =====================================================
-// PAGINA: Historias de Usuario
-// =====================================================
-// Muestra todas las historias de usuario del proyecto
-// organizadas por modulos. Cada historia describe una
-// funcionalidad real del sistema.
-// =====================================================
-
+// -- Array de Historias de Usuario del proyecto --
+// Definido fuera del componente porque son datos ESTATICOS que no cambian.
+// Si estuvieran dentro, React los recrearia en cada render (innecesario).
 const historias = [
   // ── MODULO: AUTENTICACION ──
   {
@@ -345,14 +364,16 @@ const historias = [
   }
 ];
 
-// Colores para los badges de prioridad
+// -- Mapas de colores para badges --
+// Estos objetos actuan como "lookup tables" (tablas de busqueda):
+// dado un nombre de prioridad o modulo, retornan la clase Bootstrap
+// correspondiente. Es mas limpio que usar multiples if/else o switch.
 const colorPrioridad = {
-  'Alta': 'danger',
-  'Media': 'warning',
-  'Baja': 'info'
+  'Alta': 'danger',    // Rojo: urgente, se desarrolla primero
+  'Media': 'warning',  // Amarillo: importante pero no critica
+  'Baja': 'info'       // Azul claro: deseable, se hace al final
 };
 
-// Colores para los badges de modulo
 const colorModulo = {
   'Autenticacion': 'dark',
   'Dashboard': 'primary',
@@ -366,13 +387,20 @@ const colorModulo = {
   'Usuarios': 'dark'
 };
 
+// =====================================================
+// COMPONENTE: DocumentacionHistorias
+// =====================================================
 const DocumentacionHistorias = () => {
-  // Agrupar historias por modulo
-  const modulos = {};
-  historias.forEach(h => {
-    if (!modulos[h.modulo]) modulos[h.modulo] = [];
-    modulos[h.modulo].push(h);
-  });
+
+  // -- Agrupar historias por modulo con reduce() --
+  // Transforma el array plano en un objeto donde cada clave es un modulo
+  // y el valor es un array de historias que pertenecen a ese modulo.
+  // El operador ||= (asignacion logica OR) crea el array si no existe.
+  // Ejemplo resultado: { 'Autenticacion': [HU-01, HU-02, ...], 'Dashboard': [...] }
+  const modulos = historias.reduce((acc, h) => {
+    (acc[h.modulo] ||= []).push(h);
+    return acc;
+  }, {});
 
   return (
     <div className="container py-4">
@@ -382,12 +410,16 @@ const DocumentacionHistorias = () => {
           Estas son las funcionalidades del sistema descritas desde el punto de vista del usuario.
           Cada historia explica que puede hacer cada tipo de usuario y para que le sirve.
         </p>
+        {/* Object.keys() retorna un array con las claves del objeto.
+            .length nos da cuantos modulos unicos hay. */}
         <div className="alert alert-light border">
           <strong>Total:</strong> {historias.length} historias de usuario &nbsp;|&nbsp;
           <strong>Modulos:</strong> {Object.keys(modulos).length}
         </div>
       </div>
 
+      {/* Object.entries() convierte el objeto en array de pares [clave, valor]
+          para poder usar .map(). Desestructuramos como [modulo, lista]. */}
       {Object.entries(modulos).map(([modulo, lista]) => (
         <div key={modulo} className="mb-5">
           <h4 className="fw-bold border-bottom pb-2 mb-3">
@@ -397,15 +429,20 @@ const DocumentacionHistorias = () => {
 
           {lista.map(h => (
             <div key={h.id} className="card mb-3 shadow-sm">
+              {/* flex-wrap + gap-2: en movil, el badge de prioridad baja
+                  debajo del titulo en lugar de desbordarse */}
               <div className="card-header bg-light d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <div>
                   <span className="badge bg-secondary me-2">{h.id}</span>
                   <strong>{h.titulo}</strong>
                 </div>
+                {/* Lookup en colorPrioridad: obtiene el color Bootstrap
+                    segun la prioridad de la historia */}
                 <span className={`badge bg-${colorPrioridad[h.prioridad]}`}>
                   Prioridad: {h.prioridad}
                 </span>
               </div>
+              {/* Cuerpo de la card: formato estandar de HU (Como/Quiero/Para) */}
               <div className="card-body">
                 <p className="mb-1"><strong>Como:</strong> {h.como}</p>
                 <p className="mb-1"><strong>Quiero:</strong> {h.quiero}</p>

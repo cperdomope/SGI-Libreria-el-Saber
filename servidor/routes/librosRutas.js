@@ -14,8 +14,7 @@
 // Middlewares especiales en estas rutas:
 //   - validarId: verifica que el :id en la URL sea un número entero válido
 //   - uploadPortada: procesa la imagen de portada si se envía como multipart/form-data
-//
-// 🔹 En la sustentación puedo decir:
+
 // "Las rutas de libros aplican dos niveles de protección:
 //  autenticación (verificarToken) y autorización por rol (verificarRol).
 //  Adicionalmente, validarId previene ataques donde se envíen IDs

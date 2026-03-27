@@ -24,7 +24,7 @@
 //
 // =====================================================
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 // api: cliente HTTP con Axios (ya incluye el token JWT en cada petición)
 import api from '../services/api';
 // useAuth: para verificar los permisos del usuario (RBAC)
@@ -48,37 +48,43 @@ const IconoEliminar = () => (
   </svg>
 );
 
+// Cuantos autores mostrar por pagina en la tabla
+const ELEMENTOS_POR_PAGINA = 5;
+
 // =====================================================
 // COMPONENTE PRINCIPAL
 // =====================================================
 const PaginaAutores = () => {
 
-  // ── Verificación de permisos (RBAC) ──
+  // ── Verificacion de permisos (RBAC) ──
   // tienePermiso() consulta la matriz de permisos del AuthContext
   // para saber si el usuario puede crear, editar o eliminar autores
   const { tienePermiso } = useAuth();
 
+  // useRef para el boton de cerrar modal.
+  // useRef es la forma correcta en React de referenciar elementos del DOM.
+  // Evitamos document.getElementById() porque React maneja el DOM virtual
+  // y acceder directamente al DOM real puede causar inconsistencias.
+  const cerrarModalRef = useRef(null);
+
   // ── ESTADOS DEL COMPONENTE ──
-  // autores: array con todos los autores que vienen del backend
   const [autores, setAutores] = useState([]);
-  // cargando: muestra un spinner mientras se cargan los datos
   const [cargando, setCargando] = useState(true);
   // datosAutor: datos del formulario del modal (crear o editar)
   // Si id es null → estamos creando un autor nuevo
   // Si id tiene valor → estamos editando un autor existente
   const [datosAutor, setDatosAutor] = useState({ id: null, nombre: '' });
 
-  // ── PAGINACIÓN (del lado del cliente) ──
-  // Dividimos la lista de autores en páginas de 5 elementos
+  // ── PAGINACION (del lado del cliente) ──
+  // Dividimos la lista de autores en paginas de 5 elementos
   const [paginaActual, setPaginaActual] = useState(1);
-  const elementosPorPagina = 5;
 
   // Calculamos qué autores mostrar en la página actual
   // Ejemplo: página 2 con 5 por página → muestra autores[5] a autores[9]
-  const indiceInicio = (paginaActual - 1) * elementosPorPagina;
-  const indiceFin = indiceInicio + elementosPorPagina;
+  const indiceInicio = (paginaActual - 1) * ELEMENTOS_POR_PAGINA;
+  const indiceFin = indiceInicio + ELEMENTOS_POR_PAGINA;
   const autoresPaginados = autores.slice(indiceInicio, indiceFin);
-  const totalPaginas = Math.ceil(autores.length / elementosPorPagina);
+  const totalPaginas = Math.ceil(autores.length / ELEMENTOS_POR_PAGINA);
 
   // ─────────────────────────────────────────────────────
   // FUNCIÓN: Cargar autores desde la API
@@ -139,8 +145,8 @@ const PaginaAutores = () => {
       }
       // Recargamos la lista para ver los cambios
       cargarAutores();
-      // Cerramos el modal haciendo clic en su botón de cerrar
-      document.getElementById('cerrarModalBtn').click();
+      // Cerramos el modal programaticamente via el ref
+      cerrarModalRef.current?.click();
     } catch (error) {
       // Mostramos el mensaje de error del backend (o uno genérico)
       alert(error.response?.data?.error || 'Error al guardar');
@@ -271,7 +277,7 @@ const PaginaAutores = () => {
             <div className="modal-header bg-primary text-white">
               {/* El título cambia según si estamos editando o creando */}
               <h5 className="modal-title">{datosAutor.id ? 'Editar Autor' : 'Nuevo Autor'}</h5>
-              <button type="button" className="btn-close btn-close-white" data-bs-dismiss="modal" id="cerrarModalBtn"></button>
+              <button ref={cerrarModalRef} type="button" className="btn-close btn-close-white" data-bs-dismiss="modal" />
             </div>
             <div className="modal-body">
               <form onSubmit={handleGuardar}>

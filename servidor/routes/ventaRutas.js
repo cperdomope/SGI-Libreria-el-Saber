@@ -10,8 +10,7 @@
 //     (los vendedores son quienes hacen las ventas del día a día)
 //   - Anular ventas: SOLO Administradores
 //     (es una operación crítica que revierte el stock y el ingreso)
-//
-// 🔹 En la sustentación puedo decir:
+
 // "Las rutas de ventas implementan RBAC (Control de Acceso Basado en Roles).
 //  Cualquier empleado autenticado puede registrar y consultar ventas,
 //  pero la anulación — que revierte el inventario y los ingresos —
@@ -31,6 +30,10 @@ const verificarToken = require('../middlewares/verificarToken');
 //   - administradorOVendedor: permite acceso si rol_id es 1 (Admin) o 2 (Vendedor)
 //   - soloAdministrador: solo permite acceso si rol_id es 1 (Admin)
 const { administradorOVendedor, soloAdministrador } = require('../middlewares/verificarRol');
+
+// Valida que el parametro :id sea un numero entero positivo
+// Valida que el parametro :id sea un numero entero positivo
+const { validarId } = require('../middlewares/validarParametroId');
 
 // ─────────────────────────────────────────────────────────
 // POST /api/ventas
@@ -54,7 +57,7 @@ router.get('/', verificarToken, administradorOVendedor, ventaControlador.obtener
 // Obtiene el detalle completo de una venta: cabecera + todos los productos.
 // Se usa para mostrar el ticket de venta o generar el PDF.
 // Acceso: Administradores y Vendedores.
-router.get('/:id', verificarToken, administradorOVendedor, ventaControlador.obtenerDetalleVenta);
+router.get('/:id', verificarToken, administradorOVendedor, validarId('venta'), ventaControlador.obtenerDetalleVenta);
 
 // ─────────────────────────────────────────────────────────
 // PATCH /api/ventas/:id/anular
@@ -63,6 +66,6 @@ router.get('/:id', verificarToken, administradorOVendedor, ventaControlador.obte
 // Acceso: SOLO Administradores.
 // Es PATCH (modificación parcial) porque no borra la venta, solo cambia su estado.
 // PATCH en lugar de DELETE porque la venta sigue existiendo en el historial.
-router.patch('/:id/anular', verificarToken, soloAdministrador, ventaControlador.anularVenta);
+router.patch('/:id/anular', verificarToken, soloAdministrador, validarId('venta'), ventaControlador.anularVenta);
 
 module.exports = router;

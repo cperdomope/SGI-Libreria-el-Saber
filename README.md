@@ -23,7 +23,7 @@ Todo esto funciona desde el navegador, no necesita instalar nada en el computado
 ## ¿Cómo funciona el sistema? (Paso a paso)
 
 ### 1. Iniciar sesión
-El usuario entra a la página de login, escribe su correo y contraseña. Si los datos son correctos, el sistema lo deja entrar y le muestra las opciones según su rol. Si se equivoca 3 veces seguidas, la cuenta se bloquea por seguridad.
+El usuario entra a la página de login, escribe su correo y contraseña. Si los datos son correctos, el sistema lo deja entrar y le muestra las opciones según su rol. Si se hacen más de 10 intentos desde la misma IP en 15 minutos, el sistema bloquea temporalmente esa IP por seguridad (rate limiting).
 
 ### 2. Navegación
 Una vez adentro, hay una barra de navegación en la parte de arriba con todas las secciones. En celulares se convierte en un menú tipo hamburguesa. El Administrador ve todas las opciones, el Vendedor solo ve las que le corresponden.
@@ -38,7 +38,7 @@ Aquí se ven todos los libros con su imagen, título, autor, precio y cuántos q
 Cuando llegan libros nuevos del proveedor, se registra una ENTRADA. Si se sacan libros por alguna razón que no sea venta, se registra una SALIDA. El sistema actualiza el stock automáticamente y guarda un historial de todos los movimientos.
 
 ### 6. Ventas
-Es como una caja registradora digital. Se busca el cliente, se agregan los libros al carrito, se elige el método de pago y listo. El sistema descuenta automáticamente los libros del inventario. Se puede aplicar descuento en porcentaje o en pesos.
+Es como una caja registradora digital. Se busca el cliente, se agregan los libros al carrito, se elige el método de pago y listo. El sistema descuenta automáticamente los libros del inventario. Se puede aplicar descuento en porcentaje.
 
 ### 7. Historial de ventas
 Se pueden ver todas las ventas que se han hecho, filtrarlas por fecha o buscar por cliente. El Admin puede anular una venta si algo salió mal (y el sistema devuelve los libros al inventario). También se puede descargar un ticket en PDF o exportar los datos a Excel.
@@ -133,14 +133,17 @@ El sistema tiene dos tipos de usuarios, cada uno puede hacer cosas diferentes:
 | Dashboard (estadísticas) | Si | No |
 | Ver inventario | Si | Si |
 | Crear/editar/eliminar libros | Si | No |
-| Movimientos (entradas y salidas) | Si | Si |
+| Movimientos (entradas y salidas) | Si | No |
 | Punto de Venta | Si | Si |
 | Ver historial de ventas | Si | Si |
 | Anular ventas | Si | No |
 | Ver clientes | Si | Si |
+| Crear clientes | Si | Si |
 | Editar/eliminar clientes | Si | No |
 | Gestión de Usuarios | Si | No |
-| Proveedores, Autores, Categorías | Si | Si |
+| Proveedores | Si | No |
+| Ver autores y categorías | Si | Si |
+| Crear/editar/eliminar autores y categorías | Si | No |
 | Cambiar contraseña propia | Si | Si |
 
 ---
@@ -242,8 +245,7 @@ Implementamos varias medidas de seguridad para proteger el sistema:
 - **Contraseñas encriptadas:** se guardan con bcrypt, nadie puede ver la contraseña real
 - **Tokens JWT:** cuando el usuario inicia sesión, se genera un token que lo identifica
 - **Control de roles:** cada ruta verifica que el usuario tenga permiso para acceder
-- **Bloqueo de cuenta:** después de 3 intentos fallidos, la cuenta se bloquea
-- **Límite de peticiones:** si alguien intenta hacer muchas peticiones seguidas, el sistema lo bloquea
+- **Límite de peticiones (Rate Limiting):** el login permite máximo 10 intentos por IP cada 15 minutos; la API general permite 500 peticiones por IP cada 15 minutos
 - **CORS:** solo el frontend autorizado puede comunicarse con el servidor
 - **Validación doble:** los datos se validan en el frontend Y en el backend
 - **Transacciones:** las operaciones importantes (ventas, movimientos) usan transacciones para que no queden datos a medias
@@ -261,8 +263,8 @@ Esta es la lista de rutas que el backend expone para que el frontend se comuniqu
 | POST | `/api/libros` | Agregar un libro | Admin |
 | PUT | `/api/libros/:id` | Editar un libro | Admin |
 | DELETE | `/api/libros/:id` | Eliminar un libro | Admin |
-| GET | `/api/movimientos` | Ver historial de movimientos | Usuario autenticado |
-| POST | `/api/movimientos` | Registrar entrada o salida | Usuario autenticado |
+| GET | `/api/movimientos` | Ver historial de movimientos | Admin |
+| POST | `/api/movimientos` | Registrar entrada o salida | Admin |
 | GET | `/api/ventas` | Ver ventas | Usuario autenticado |
 | POST | `/api/ventas` | Crear una venta | Usuario autenticado |
 | PATCH | `/api/ventas/:id/anular` | Anular una venta | Admin |
@@ -272,9 +274,11 @@ Esta es la lista de rutas que el backend expone para que el frontend se comuniqu
 | DELETE | `/api/clientes/:id` | Eliminar cliente | Admin |
 | GET | `/api/dashboard` | Ver estadísticas | Admin |
 | GET/POST/PUT/PATCH | `/api/usuarios` | Gestión de usuarios | Admin |
-| GET/POST/PUT/PATCH | `/api/proveedores` | Gestión de proveedores | Varía |
-| GET/POST/PUT/DELETE | `/api/autores` | Gestión de autores | Varía |
-| GET/POST/PUT/DELETE | `/api/categorias` | Gestión de categorías | Varía |
+| GET/POST/PUT/DELETE | `/api/proveedores` | Gestión de proveedores | Admin |
+| GET | `/api/autores` | Ver autores | Admin y Vendedor |
+| POST/PUT/DELETE | `/api/autores` | Crear/editar/eliminar autores | Admin |
+| GET | `/api/categorias` | Ver categorías | Admin y Vendedor |
+| POST/PUT/DELETE | `/api/categorias` | Crear/editar/eliminar categorías | Admin |
 
 ---
 
@@ -365,9 +369,14 @@ npm test
 
 | Archivo de prueba | ¿Qué prueba? |
 |-------------------|--------------|
-| `pruebas/auth.test.js` | Que el login funcione, que el token JWT sea válido, que las rutas protegidas no dejen pasar sin token |
-| `pruebas/clientes.test.js` | Que se puedan crear, leer, editar y eliminar clientes, y que los permisos funcionen |
-| `pruebas/ventas.test.js` | Que se puedan crear ventas, que los totales se calculen bien, que la seguridad funcione |
+| `pruebas/auth.test.js` | Login, validación de token JWT, protección de rutas sin autenticación |
+| `pruebas/catalogos.test.js` | CRUD de autores y categorías, permisos RBAC (admin vs vendedor) |
+| `pruebas/clientes.test.js` | Listado y creación de clientes, protección sin token |
+| `pruebas/dashboard.test.js` | Acceso exclusivo admin, estructura de datos de estadísticas |
+| `pruebas/libros.test.js` | CRUD de libros, validaciones (título, precio negativo), protección sin token |
+| `pruebas/movimientos.test.js` | Seguridad, validación de tipos (ENTRADA/SALIDA), cantidad negativa, proveedor obligatorio |
+| `pruebas/usuarios.test.js` | CRUD de usuarios, RBAC, cambio de contraseña, que password_hash nunca se exponga |
+| `pruebas/ventas.test.js` | Creación de ventas, carrito vacío, detección de total manipulado (anti-fraude) |
 
 ---
 

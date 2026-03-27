@@ -10,8 +10,7 @@
 //     (los vendedores necesitan registrar clientes nuevos al momento de vender)
 //   - Editar y eliminar: SOLO Administradores
 //     (modificar o borrar clientes existentes es más delicado)
-//
-// 🔹 En la sustentación puedo decir:
+
 // "El módulo de clientes diferencia permisos por operación.
 //  Los vendedores pueden consultar y crear clientes porque lo necesitan
 //  para registrar ventas, pero solo el administrador puede modificar

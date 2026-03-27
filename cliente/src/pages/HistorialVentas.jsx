@@ -46,7 +46,7 @@
 //  esAdministrador() del AuthContext."
 // =====================================================
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
@@ -66,8 +66,37 @@ const IconoOjo = () => (
   </svg>
 );
 
-// Cuántas ventas mostrar por página en la tabla
+// Cuantas ventas mostrar por pagina en la tabla
 const ELEMENTOS_POR_PAGINA = 10;
+
+// ─────────────────────────────────────────────────────────
+// UTILIDADES DE FORMATO
+// ─────────────────────────────────────────────────────────
+// Estas funciones estan FUERA del componente porque no dependen
+// de ningun estado (props ni state). Asi se crean una sola vez
+// cuando el modulo se carga, en lugar de recrearse en cada render.
+// Regla general: si una funcion no usa variables del componente,
+// se puede (y se debe) extraer fuera para evitar trabajo innecesario.
+
+// Fecha con hora en formato colombiano: dd/mm/aaaa hh:mm
+const formatearFecha = (fecha) =>
+  new Date(fecha).toLocaleString('es-CO', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit'
+  });
+
+// Precio con simbolo de peso colombiano: $1.234.567
+// Intl.NumberFormat es la API nativa del browser para internacionalizacion
+// de numeros. Con 'es-CO' y currency: 'COP' formatea automaticamente
+// con punto como separador de miles (estandar colombiano).
+const formatearPrecio = (precio) =>
+  new Intl.NumberFormat('es-CO', {
+    style: 'currency', currency: 'COP', minimumFractionDigits: 0
+  }).format(precio || 0);
+
+// Numero formateado sin simbolo de moneda: 1.234.567
+const formatearNumero = (n) =>
+  new Intl.NumberFormat('es-CO').format(n || 0);
 
 // ─────────────────────────────────────────────────────────
 // COMPONENTE PRINCIPAL
@@ -152,12 +181,11 @@ const HistorialVentas = () => {
   }, [cargarVentas]);
 
   // ─────────────────────────────────────────────────────
-  // CÁLCULO DE PAGINACIÓN
+  // CALCULO DE PAGINACION
   // ─────────────────────────────────────────────────────
-  // Math.ceil redondea hacia arriba: 21 registros / 10 por página = 3 páginas
-  // Math.max(1, ...) garantiza al menos 1 página aunque no haya registros
-  const totalPaginas    = Math.max(1, Math.ceil(totalRegistros / ELEMENTOS_POR_PAGINA));
-  const ventasPaginadas = ventas;  // El servidor ya devuelve solo la página actual
+  // Math.ceil redondea hacia arriba: 21 registros / 10 = 3 paginas
+  // Math.max(1, ...) garantiza minimo 1 pagina aunque no haya registros
+  const totalPaginas = Math.max(1, Math.ceil(totalRegistros / ELEMENTOS_POR_PAGINA));
 
   // ─────────────────────────────────────────────────────
   // VER DETALLE DE UNA VENTA (abre el modal)
@@ -220,8 +248,7 @@ const HistorialVentas = () => {
 
     const anchoDoc = 80;
     const margen   = 5;
-    const anchoUtil = anchoDoc - margen * 2;
-    let y = 8;  // Posición vertical actual en mm
+    let y = 8;  // Posicion vertical actual en mm
 
     // Funciones auxiliares para dibujar texto en el PDF:
     // lineaCentrada: texto centrado horizontalmente
@@ -362,7 +389,8 @@ const HistorialVentas = () => {
 
       alert(`Venta #${ventaId} anulada exitosamente.`);
       cerrarModal();
-      cargarVentas();  // Refrescar la lista para mostrar el nuevo estado
+      // Refrescar la lista manteniendo la pagina actual (no volver a pagina 1)
+      cargarVentas(paginaActual);
     } catch (err) {
       // El backend devuelve un mensaje específico si la venta ya estaba anulada
       const mensaje = err.response?.data?.mensaje || 'Error al anular la venta';
@@ -373,28 +401,7 @@ const HistorialVentas = () => {
     }
   };
 
-  // ─────────────────────────────────────────────────────
-  // UTILIDADES DE FORMATO
-  // ─────────────────────────────────────────────────────
-
-  // Fecha con hora en formato colombiano: dd/mm/aaaa hh:mm
-  const formatearFecha = (fecha) =>
-    new Date(fecha).toLocaleString('es-CO', {
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit'
-    });
-
-  // Precio con símbolo de peso colombiano: $1.234.567
-  const formatearPrecio = (precio) =>
-    new Intl.NumberFormat('es-CO', {
-      style: 'currency', currency: 'COP', minimumFractionDigits: 0
-    }).format(precio || 0);
-
-  // Número formateado sin símbolo de moneda: 1.234.567
-  const formatearNumero = (n) =>
-    new Intl.NumberFormat('es-CO').format(n || 0);
-
-  // Limpiar todos los filtros de búsqueda
+  // Limpiar todos los filtros de busqueda
   const limpiarFiltros = () => {
     setBuscar('');
     setFechaInicio('');
@@ -483,8 +490,10 @@ const HistorialVentas = () => {
           </div>
 
           {/* Contador de resultados de la búsqueda actual */}
+          {/* totalRegistros viene del servidor y refleja el total real,
+              no solo los elementos de la pagina actual */}
           <p className="text-muted small mb-2">
-            {ventas.length} {ventas.length === 1 ? 'venta encontrada' : 'ventas encontradas'}
+            {totalRegistros} {totalRegistros === 1 ? 'venta encontrada' : 'ventas encontradas'}
             {hayFiltrosActivos && ' (filtrada)'}
           </p>
 
@@ -503,7 +512,7 @@ const HistorialVentas = () => {
                 </tr>
               </thead>
               <tbody>
-                {ventasPaginadas.length === 0 ? (
+                {ventas.length === 0 ? (
                   <tr>
                     <td colSpan="7" className="text-center text-muted py-4">
                       {hayFiltrosActivos
@@ -512,7 +521,7 @@ const HistorialVentas = () => {
                     </td>
                   </tr>
                 ) : (
-                  ventasPaginadas.map((venta) => (
+                  ventas.map((venta) => (
                     <tr key={venta.id}>
                       {/* padStart(6, '0'): formatea el ID como 000042 */}
                       <td className="fw-bold">#{String(venta.id).padStart(6, '0')}</td>
@@ -691,11 +700,9 @@ const HistorialVentas = () => {
               <div className="modal-footer">
                 {detalleVenta && (
                   <>
-                    {/* Descargar el ticket en PDF */}
                     <button
                       className="btn btn-success"
                       onClick={generarPDF}
-                      disabled={!detalleVenta}
                     >
                       Descargar PDF
                     </button>

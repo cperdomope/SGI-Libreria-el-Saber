@@ -31,6 +31,9 @@ const autorControlador = require('../controllers/autorControlador');
 const verificarToken = require('../middlewares/verificarToken');
 const { soloAdministrador, administradorOVendedor } = require('../middlewares/verificarRol');
 
+// Valida que el parametro :id sea un numero entero positivo
+const { validarId } = require('../middlewares/validarParametroId');
+
 // ─────────────────────────────────────────────────────
 // RUTA GET: Listar todos los autores
 // ─────────────────────────────────────────────────────
@@ -47,11 +50,11 @@ router.post('/', verificarToken, soloAdministrador, autorControlador.crearAutor)
 
 // PUT: Actualizar datos de un autor existente
 // Params: :id → ID del autor a modificar
-router.put('/:id', verificarToken, soloAdministrador, autorControlador.actualizarAutor);
+router.put('/:id', verificarToken, soloAdministrador, validarId('autor'), autorControlador.actualizarAutor);
 
 // DELETE: Eliminar un autor
 // Params: :id → ID del autor a eliminar
-router.delete('/:id', verificarToken, soloAdministrador, autorControlador.eliminarAutor);
+router.delete('/:id', verificarToken, soloAdministrador, validarId('autor'), autorControlador.eliminarAutor);
 
 // Exportamos el router para que app.js lo monte en /api/autores
 module.exports = router;

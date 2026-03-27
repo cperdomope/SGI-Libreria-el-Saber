@@ -1,14 +1,30 @@
-import React from 'react';
+// =====================================================
+// PAGINA: Criterios de Aceptacion (Documentacion SENA)
+// =====================================================
+// En la metodologia agil (Scrum), cada Historia de Usuario tiene asociados
+// "criterios de aceptacion": condiciones especificas y verificables que
+// definen CUANDO una funcionalidad se considera terminada y correcta.
+//
+// Estructura de este archivo:
+//   1. Array "criterios": datos estaticos con todas las HU y sus criterios
+//   2. Objeto "colorModulo": mapa de colores para badges por modulo
+//   3. Componente DocumentacionCriterios: agrupa por modulo y renderiza
+//
+// Este componente se carga de forma diferida (lazy) desde Acceso.jsx,
+// por lo que solo se descarga cuando el usuario abre el modal de documentacion.
+//
+// Conceptos aplicados:
+//   - Datos estaticos fuera del componente (no se recrean en cada render)
+//   - Object.entries(): convierte un objeto en array de pares [clave, valor]
+//   - Array.reduce(): acumula/agrupa elementos de un array en una estructura
+//   - Template literals con expresiones: `bg-${variable}`
+// =====================================================
 
-// =====================================================
-// PAGINA: Criterios de Aceptacion
-// =====================================================
-// Muestra los criterios de aceptacion asociados a cada
-// historia de usuario. Los criterios son las condiciones
-// que se deben cumplir para que la funcionalidad se
-// considere terminada y funcionando correctamente.
-// =====================================================
-
+// -- Array de criterios de aceptacion --
+// Se define fuera del componente como constante porque son datos ESTATICOS
+// que nunca cambian durante la ejecucion. Si estuvieran dentro del componente,
+// React los recrearia en memoria en cada render (innecesario).
+// Cada objeto tiene: id (HU-XX), titulo, modulo (para agrupar) y criterios (array de strings).
 const criterios = [
   // ── AUTENTICACION ──
   {
@@ -425,7 +441,10 @@ const criterios = [
   }
 ];
 
-// Colores para los badges de modulo
+// -- Mapa de colores Bootstrap para cada modulo --
+// Esto permite asignar un color de badge distinto a cada seccion,
+// facilitando la identificacion visual. Las clases (primary, success, etc.)
+// son clases de Bootstrap 5 para colores de fondo (bg-*).
 const colorModulo = {
   'Autenticacion': 'dark',
   'Dashboard': 'primary',
@@ -439,13 +458,39 @@ const colorModulo = {
   'Usuarios': 'dark'
 };
 
+// =====================================================
+// COMPONENTE: DocumentacionCriterios
+// =====================================================
 const DocumentacionCriterios = () => {
-  // Agrupar por modulo
-  const modulos = {};
-  criterios.forEach(c => {
-    if (!modulos[c.modulo]) modulos[c.modulo] = [];
-    modulos[c.modulo].push(c);
-  });
+
+  // -- Agrupar criterios por modulo usando reduce() --
+  // Array.reduce() es un metodo funcional que recorre un array y va
+  // "acumulando" un resultado. Aqui, transforma el array plano de criterios
+  // en un objeto agrupado por modulo:
+  //
+  // ANTES (array plano):
+  //   [ {modulo:'Ventas', ...}, {modulo:'Ventas', ...}, {modulo:'Clientes', ...} ]
+  //
+  // DESPUES (objeto agrupado):
+  //   { 'Ventas': [{...}, {...}], 'Clientes': [{...}] }
+  //
+  // Parametros de reduce:
+  //   - acc (acumulador): el objeto que se va construyendo
+  //   - c (current): el elemento actual del array
+  //   - {} : valor inicial del acumulador (objeto vacio)
+  //
+  // (acc[c.modulo] ||= []) es el operador de asignacion logica OR:
+  // si acc[c.modulo] no existe (undefined/null), le asigna un array vacio.
+  // Luego .push(c) agrega el criterio al array de ese modulo.
+  const modulos = criterios.reduce((acc, c) => {
+    (acc[c.modulo] ||= []).push(c);
+    return acc;
+  }, {});
+
+  // -- Contar total de criterios individuales --
+  // Otro uso de reduce(): suma la cantidad de criterios de todas las HU.
+  // acc empieza en 0 y va sumando c.criterios.length de cada historia.
+  const totalCriterios = criterios.reduce((acc, c) => acc + c.criterios.length, 0);
 
   return (
     <div className="container py-4">
@@ -457,16 +502,24 @@ const DocumentacionCriterios = () => {
         </p>
         <div className="alert alert-light border">
           <strong>Total:</strong> {criterios.length} historias con criterios &nbsp;|&nbsp;
-          <strong>Total de criterios:</strong> {criterios.reduce((acc, c) => acc + c.criterios.length, 0)}
+          <strong>Total de criterios:</strong> {totalCriterios}
         </div>
       </div>
 
+      {/* Object.entries() convierte el objeto "modulos" en un array de pares
+          [clave, valor], es decir: [['Autenticacion', [...]], ['Dashboard', [...]], ...]
+          Esto permite usar .map() para iterar, ya que .map() no funciona en objetos.
+          Desestructuramos cada par como [modulo, lista] directamente en los parametros. */}
       {Object.entries(modulos).map(([modulo, lista]) => (
         <div key={modulo} className="mb-5">
           <h4 className="fw-bold border-bottom pb-2 mb-3">
+            {/* Template literal: `bg-${expresion}` permite construir nombres
+                de clase CSS dinamicamente. Si colorModulo[modulo] es undefined,
+                el operador || usa 'secondary' como fallback (color por defecto). */}
             <span className={`badge bg-${colorModulo[modulo] || 'secondary'} me-2`}>{modulo}</span>
           </h4>
 
+          {/* Segundo nivel de .map(): por cada modulo, iteramos sus historias */}
           {lista.map(item => (
             <div key={item.id} className="card mb-3 shadow-sm">
               <div className="card-header bg-light">
@@ -475,6 +528,10 @@ const DocumentacionCriterios = () => {
               </div>
               <div className="card-body">
                 <p className="text-muted small mb-2">Criterios de aceptacion:</p>
+                {/* <ol> = lista ordenada (numerada). Usamos indice "i" como key
+                    porque estos items son estaticos y nunca cambian de orden.
+                    En listas dinamicas (que cambian), usar indice como key
+                    es una mala practica porque confunde el reconciliador de React. */}
                 <ol className="mb-0">
                   {item.criterios.map((criterio, i) => (
                     <li key={i} className="mb-1">{criterio}</li>

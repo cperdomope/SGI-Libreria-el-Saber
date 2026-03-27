@@ -24,8 +24,7 @@
 //   4. Salir del proceso limpiamente
 // Sin esto, un reinicio rápido puede causar "Too many connections"
 // en MySQL porque las conexiones anteriores no se cerraron.
-//
-// 🔹 En la sustentación puedo decir:
+
 // "Implementamos graceful shutdown para que el servidor se apague
 //  ordenadamente ante señales del SO o de PM2. Esto es importante
 //  en producción: evita pérdida de datos en peticiones en curso

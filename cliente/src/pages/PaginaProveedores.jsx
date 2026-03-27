@@ -21,8 +21,10 @@
 // =====================================================
 
 import { useState, useEffect } from 'react';
-// api: cliente HTTP con Axios (incluye token JWT automáticamente)
+// api: cliente HTTP con Axios (incluye token JWT automaticamente)
 import api from '../services/api';
+// useAuth: para verificar permisos RBAC del usuario
+import { useAuth } from '../context/AuthContext';
 
 // --- ICONOS SVG INLINE (evita dependencias externas) ---
 const IconoPlus = () => (
@@ -44,10 +46,20 @@ const IconoEliminar = () => (
   </svg>
 );
 
+// Cuantos proveedores mostrar por pagina en la tabla
+const ELEMENTOS_POR_PAGINA = 5;
+
 // =====================================================
 // COMPONENTE PRINCIPAL
 // =====================================================
 const PaginaProveedores = () => {
+
+  // ── Verificacion de permisos (RBAC) ──
+  // tienePermiso() consulta la matriz de permisos del AuthContext
+  // para saber si el usuario puede crear, editar o eliminar proveedores.
+  // IMPORTANTE: Sin esta verificacion, cualquier usuario podria ver
+  // los botones de accion, lo cual es un problema de seguridad en el frontend.
+  const { tienePermiso } = useAuth();
 
   // ── ESTADOS DEL COMPONENTE ──
   const [proveedores, setProveedores] = useState([]);    // Lista de proveedores del backend
@@ -56,7 +68,7 @@ const PaginaProveedores = () => {
   const [mostrarModal, setMostrarModal] = useState(false); // Visibilidad del modal
 
   // formDatos: datos del formulario (crear o editar)
-  // id=null → crear nuevo | id=número → editar existente
+  // id=null → crear nuevo | id=numero → editar existente
   const [formDatos, setFormDatos] = useState({
     id: null,
     nombre_empresa: '',
@@ -67,15 +79,14 @@ const PaginaProveedores = () => {
     direccion: ''
   });
 
-  // ── PAGINACIÓN (5 proveedores por página) ──
+  // ── PAGINACION (del lado del cliente) ──
   const [paginaActual, setPaginaActual] = useState(1);
-  const elementosPorPagina = 5;
 
   // Calculamos qué proveedores mostrar en la página actual
-  const indiceInicio = (paginaActual - 1) * elementosPorPagina;
-  const indiceFin = indiceInicio + elementosPorPagina;
+  const indiceInicio = (paginaActual - 1) * ELEMENTOS_POR_PAGINA;
+  const indiceFin = indiceInicio + ELEMENTOS_POR_PAGINA;
   const proveedoresPaginados = proveedores.slice(indiceInicio, indiceFin);
-  const totalPaginas = Math.ceil(proveedores.length / elementosPorPagina);
+  const totalPaginas = Math.ceil(proveedores.length / ELEMENTOS_POR_PAGINA);
 
   // Se ejecuta al montar el componente (primera carga)
   useEffect(() => {
@@ -152,18 +163,52 @@ const PaginaProveedores = () => {
     setError(null);
 
     // Validación de campo obligatorio
-    if (!formDatos.nombre_empresa) {
+    if (!formDatos.nombre_empresa?.trim()) {
       setError('El nombre de la empresa es obligatorio');
       return;
     }
 
+    // Validar formato de email (si se proporcionó)
+    if (formDatos.email && formDatos.email.trim() !== '') {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formDatos.email.trim())) {
+        setError('El formato del email no es válido.');
+        return;
+      }
+    }
+
+    // Validar teléfono: solo números, exactamente 10 dígitos (si se proporcionó)
+    let telefonoLimpio = '';
+    if (formDatos.telefono && formDatos.telefono.trim() !== '') {
+      telefonoLimpio = formDatos.telefono.replace(/[\s\-\(\)\.]/g, '');
+      if (!/^\d+$/.test(telefonoLimpio)) {
+        setError('El teléfono solo debe contener números.');
+        return;
+      }
+      if (telefonoLimpio.length !== 10) {
+        setError('El teléfono debe tener exactamente 10 dígitos.');
+        return;
+      }
+    }
+
+    // Normalizar datos antes de enviar
+    const datosNormalizados = {
+      ...formDatos,
+      nombre_empresa: formDatos.nombre_empresa.trim(),
+      nit: formDatos.nit?.trim() || '',
+      nombre_contacto: formDatos.nombre_contacto?.trim() || '',
+      email: formDatos.email?.trim().toLowerCase() || '',
+      telefono: telefonoLimpio || '',
+      direccion: formDatos.direccion?.trim() || ''
+    };
+
     try {
       if (formDatos.id) {
         // Actualizar proveedor existente
-        await api.put(`/proveedores/${formDatos.id}`, formDatos);
+        await api.put(`/proveedores/${formDatos.id}`, datosNormalizados);
       } else {
         // Crear nuevo proveedor
-        await api.post('/proveedores', formDatos);
+        await api.post('/proveedores', datosNormalizados);
       }
 
       await cargarProveedores();
@@ -205,9 +250,11 @@ const PaginaProveedores = () => {
       <div className="card shadow-sm">
         <div className="module-header">
           <h4 className="mb-0">Gestión de Proveedores</h4>
-          <button className="btn btn-light btn-sm" onClick={abrirModalCrear}>
-            <IconoPlus /> Nuevo Proveedor
-          </button>
+          {tienePermiso('crearProveedor') && (
+            <button className="btn btn-light btn-sm" onClick={abrirModalCrear}>
+              <IconoPlus /> Nuevo Proveedor
+            </button>
+          )}
         </div>
 
         <div className="card-body">
@@ -258,20 +305,30 @@ const PaginaProveedores = () => {
                       <td className="text-center">{proveedor.telefono || '-'}</td>
                       <td className="d-none d-lg-table-cell text-center">{proveedor.direccion || '-'}</td>
                       <td className="text-center action-buttons">
-                        <button
-                          className="btn btn-sm btn-outline-primary me-1"
-                          onClick={() => abrirModalEditar(proveedor)}
-                          title="Editar"
-                        >
-                          <IconoEditar />
-                        </button>
-                        <button
-                          className="btn btn-sm btn-outline-danger"
-                          onClick={() => manejarEliminar(proveedor.id)}
-                          title="Eliminar"
-                        >
-                          <IconoEliminar />
-                        </button>
+                        {/* Boton editar: solo si tiene permiso */}
+                        {tienePermiso('editarProveedor') && (
+                          <button
+                            className="btn btn-sm btn-outline-primary me-1"
+                            onClick={() => abrirModalEditar(proveedor)}
+                            title="Editar"
+                          >
+                            <IconoEditar />
+                          </button>
+                        )}
+                        {/* Boton eliminar: solo si tiene permiso */}
+                        {tienePermiso('eliminarProveedor') && (
+                          <button
+                            className="btn btn-sm btn-outline-danger"
+                            onClick={() => manejarEliminar(proveedor.id)}
+                            title="Eliminar"
+                          >
+                            <IconoEliminar />
+                          </button>
+                        )}
+                        {/* Si no tiene ningun permiso de escritura */}
+                        {!tienePermiso('editarProveedor') && !tienePermiso('eliminarProveedor') && (
+                          <span className="text-muted small">Solo lectura</span>
+                        )}
                       </td>
                     </tr>
                   ))
@@ -308,8 +365,11 @@ const PaginaProveedores = () => {
       </div>
 
       {/* Modal Crear/Editar */}
+      {/* ── Modal de crear/editar proveedor ── */}
+      {/* Controlamos el modal con estado React (mostrarModal) en vez de
+          data-bs-toggle de Bootstrap. Esto nos da control total sobre
+          cuando se abre/cierra y permite limpiar errores al cerrar. */}
       {mostrarModal && (
-        <>
           <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
             <div className="modal-dialog modal-fullscreen-sm-down">
               <div className="modal-content">
@@ -382,12 +442,15 @@ const PaginaProveedores = () => {
                     <div className="mb-3">
                       <label className="form-label">Teléfono</label>
                       <input
-                        type="text"
+                        type="tel"
                         className="form-control"
                         name="telefono"
                         value={formDatos.telefono}
                         onChange={manejarCambioInput}
+                        placeholder="10 dígitos, ej: 3124565570"
+                        maxLength={15}
                       />
+                      <small className="text-muted">Solo números, exactamente 10 dígitos</small>
                     </div>
 
                     <div className="mb-3">
@@ -418,7 +481,6 @@ const PaginaProveedores = () => {
               </div>
             </div>
           </div>
-        </>
       )}
     </div>
   );

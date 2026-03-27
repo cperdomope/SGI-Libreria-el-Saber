@@ -90,11 +90,13 @@ exports.obtenerEstadisticas = async (_req, res) => {
 
       // ── CONSULTA 1: Ventas de HOY ──
       // COUNT = cuántas ventas, SUM = total en dinero
+      // IMPORTANTE: Excluimos ventas anuladas para que los indicadores sean precisos
       db.query(`
         SELECT COUNT(*) AS cantidad, COALESCE(SUM(total_venta), 0) AS ingresos
         FROM mdc_ventas
         WHERE fecha_venta >= CURDATE()
           AND fecha_venta <  CURDATE() + INTERVAL 1 DAY
+          AND estado != 'Anulada'
       `),
 
       // ── CONSULTA 2: Ventas del MES ACTUAL ──
@@ -103,6 +105,7 @@ exports.obtenerEstadisticas = async (_req, res) => {
         FROM mdc_ventas
         WHERE fecha_venta >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
           AND fecha_venta <  DATE_FORMAT(CURDATE() + INTERVAL 1 MONTH, '%Y-%m-01')
+          AND estado != 'Anulada'
       `),
 
       // ── CONSULTA 3: Ventas del MES ANTERIOR (para comparar crecimiento) ──
@@ -111,6 +114,7 @@ exports.obtenerEstadisticas = async (_req, res) => {
         FROM mdc_ventas
         WHERE fecha_venta >= DATE_FORMAT(CURDATE() - INTERVAL 1 MONTH, '%Y-%m-01')
           AND fecha_venta <  DATE_FORMAT(CURDATE(), '%Y-%m-01')
+          AND estado != 'Anulada'
       `),
 
       // ── CONSULTA 4: Ventas de la SEMANA actual ──
@@ -119,10 +123,12 @@ exports.obtenerEstadisticas = async (_req, res) => {
         SELECT COUNT(*) AS cantidad, COALESCE(SUM(total_venta), 0) AS ingresos
         FROM mdc_ventas
         WHERE YEARWEEK(fecha_venta, 1) = YEARWEEK(CURDATE(), 1)
+          AND estado != 'Anulada'
       `),
 
       // ── CONSULTA 5: Top 5 libros más vendidos ──
       // GROUP BY agrupa las ventas por libro y SUM suma las cantidades
+      // JOIN con mdc_ventas para excluir detalles de ventas anuladas
       db.query(`
         SELECT
           l.titulo,
@@ -131,8 +137,10 @@ exports.obtenerEstadisticas = async (_req, res) => {
           SUM(dv.cantidad) AS total_vendido,
           SUM(dv.cantidad * dv.precio_unitario) AS ingresos_generados
         FROM mdc_detalle_ventas dv
+        INNER JOIN mdc_ventas  v ON dv.venta_id = v.id
         INNER JOIN mdc_libros  l ON dv.libro_id = l.id
         LEFT  JOIN mdc_autores a ON l.autor_id   = a.id
+        WHERE v.estado != 'Anulada'
         GROUP BY l.id, l.titulo, l.isbn, a.nombre
         ORDER BY total_vendido DESC
         LIMIT ?
@@ -147,6 +155,7 @@ exports.obtenerEstadisticas = async (_req, res) => {
           SUM(v.total_venta) AS total_gastado
         FROM mdc_ventas v
         INNER JOIN mdc_clientes c ON v.cliente_id = c.id
+        WHERE v.estado != 'Anulada'
         GROUP BY c.id, c.nombre_completo, c.documento
         ORDER BY total_compras DESC
         LIMIT ?
@@ -193,6 +202,7 @@ exports.obtenerEstadisticas = async (_req, res) => {
           COALESCE(SUM(total_venta), 0) AS ingresos
         FROM mdc_ventas
         WHERE fecha_venta >= CURDATE() - INTERVAL 6 MONTH
+          AND estado != 'Anulada'
         GROUP BY DATE_FORMAT(fecha_venta, '%Y-%m'), DATE_FORMAT(fecha_venta, '%b %Y')
         ORDER BY mes ASC
       `),
@@ -221,12 +231,14 @@ exports.obtenerEstadisticas = async (_req, res) => {
           COALESCE(SUM(total_venta), 0) AS ingresos
         FROM mdc_ventas
         WHERE fecha_venta >= CURDATE() - INTERVAL 30 DAY
+          AND estado != 'Anulada'
         GROUP BY dia_num, dia_nombre
         ORDER BY dia_num
       `),
 
       // ── CONSULTA 15: Últimas 5 ventas realizadas ──
       // Para ver la actividad reciente del negocio
+      // Excluimos ventas anuladas para mostrar solo actividad válida
       db.query(`
         SELECT
           v.id,
@@ -238,6 +250,7 @@ exports.obtenerEstadisticas = async (_req, res) => {
         FROM mdc_ventas v
         LEFT JOIN mdc_clientes c ON v.cliente_id = c.id
         LEFT JOIN mdc_usuarios u ON v.usuario_id = u.id
+        WHERE v.estado != 'Anulada'
         ORDER BY v.fecha_venta DESC
         LIMIT ?
       `, [LIMITES.ULTIMAS_VENTAS])

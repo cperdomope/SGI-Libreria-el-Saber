@@ -12,8 +12,7 @@
 // Campos: id, nombre (UNIQUE — no puede haber dos categorías con el mismo nombre)
 //
 // Relación: mdc_libros.categoria_id → mdc_categorias.id
-//
-// 🔹 En la sustentación puedo decir:
+
 // "Las categorías son datos de catálogo que clasifican los libros.
 //  El nombre tiene restricción UNIQUE en la base de datos, así que
 //  capturamos el error ER_DUP_ENTRY de MySQL para dar un mensaje
@@ -119,15 +118,9 @@ exports.crearCategoria = async (req, res) => {
 // que la tienen asignada reflejan el cambio automáticamente
 // (porque usan el ID, no el texto de la categoría).
 exports.actualizarCategoria = async (req, res) => {
+  // El middleware validarParametroId ya verifico que el ID sea un numero valido
   const { id }     = req.params;
   const { nombre } = req.body;
-
-  if (!id || isNaN(parseInt(id))) {
-    return res.status(400).json({
-      exito:   false,
-      mensaje: 'ID de categoría inválido'
-    });
-  }
 
   if (!nombre || nombre.trim() === '') {
     return res.status(400).json({
@@ -184,14 +177,8 @@ exports.actualizarCategoria = async (req, res) => {
 // Primero consultamos cuántos libros la usan y damos un mensaje
 // descriptivo antes de que MySQL genere el error de FK.
 exports.eliminarCategoria = async (req, res) => {
+  // El middleware validarParametroId ya verifico que el ID sea un numero valido
   const { id } = req.params;
-
-  if (!id || isNaN(parseInt(id))) {
-    return res.status(400).json({
-      exito:   false,
-      mensaje: 'ID de categoría inválido'
-    });
-  }
 
   try {
     // Contamos cuántos libros tienen esta categoría asignada

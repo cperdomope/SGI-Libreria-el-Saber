@@ -15,8 +15,7 @@
 //
 // BASE URL de este módulo (definida en app.js): /api/auth
 // Las rutas aquí se agregan a ese prefijo.
-//
-// 🔹 En la sustentación puedo decir:
+
 // "El sistema tiene dos rutas de autenticación:
 //  /login es pública pero con rate limiting para evitar ataques.
 //  /registro está protegida — solo un administrador autenticado

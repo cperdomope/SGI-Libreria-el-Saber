@@ -23,8 +23,7 @@
 // Es una función que DEVUELVE el middleware ya configurado.
 // Esto permite crear variantes (soloAdmin, adminOVendedor)
 // sin repetir código.
-//
-// 🔹 En la sustentación puedo decir:
+
 // "Implementamos RBAC con una factory function: verificarRol([roles])
 //  recibe un arreglo de IDs de roles permitidos y devuelve el middleware
 //  ya configurado. Los presets soloAdministrador y administradorOVendedor

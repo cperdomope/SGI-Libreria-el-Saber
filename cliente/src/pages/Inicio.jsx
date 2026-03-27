@@ -28,7 +28,7 @@
 //
 // =====================================================
 
-import React, { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 
@@ -220,30 +220,33 @@ const Inicio = () => {
   const [cargando, setCargando]         = useState(true);  // ¿Está cargando?
   const [error, setError]               = useState(null);  // ¿Hubo error?
 
-  // ── CARGAR DATOS AL MONTAR EL COMPONENTE ──
-  // useEffect con [] vacío = solo se ejecuta UNA vez al cargar la página
-  useEffect(() => {
-    cargarEstadisticas();
-  }, []);
-
-  // ── FUNCIÓN QUE PIDE LOS DATOS AL BACKEND ──
-  // useCallback memoriza la función para que no se recree en cada render
+  // ── FUNCION QUE PIDE LOS DATOS AL BACKEND ──
+  // useCallback con dependencias vacias [] memoriza la funcion para que
+  // se cree una sola vez. Esto es necesario para poder incluirla como
+  // dependencia del useEffect sin causar re-ejecuciones infinitas.
   const cargarEstadisticas = useCallback(async () => {
     try {
       setCargando(true);
-      // Hacemos la petición GET al endpoint del dashboard
       const respuesta = await api.get('/dashboard');
-      // Guardamos los datos en el estado
       setEstadisticas(respuesta.data.datos || respuesta.data);
       setError(null);
     } catch (err) {
       if (import.meta.env.DEV) console.error('[Dashboard] Error:', err);
-      setError('Error al cargar estadísticas del dashboard');
+      setError('Error al cargar estadisticas del dashboard');
     } finally {
       // finally SIEMPRE se ejecuta: quita el spinner haya error o no
       setCargando(false);
     }
   }, []);
+
+  // ── CARGAR DATOS AL MONTAR EL COMPONENTE ──
+  // Incluimos cargarEstadisticas en las dependencias para cumplir
+  // la regla exhaustive-deps del linter de React Hooks.
+  // Como cargarEstadisticas esta envuelta en useCallback([]),
+  // su referencia nunca cambia y el efecto solo se ejecuta una vez.
+  useEffect(() => {
+    cargarEstadisticas();
+  }, [cargarEstadisticas]);
 
   // ── ESTADOS DE CARGA Y ERROR (early return) ──
   // Mostramos pantallas diferentes según el estado actual

@@ -25,8 +25,7 @@
  *   } catch (error) {
  *     next(error);   // ← delega al errorHandler global
  *   }
- *
- * ANTE UN JURADO:
+ 
  * "Implementamos un middleware de errores global que
  *  estandariza todas las respuestas de error, evita
  *  exponer detalles internos en producción y centraliza

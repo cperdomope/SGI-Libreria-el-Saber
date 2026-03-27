@@ -16,8 +16,7 @@
 //
 // El documento (cédula, pasaporte, etc.) es único en el sistema.
 // No puede haber dos clientes con el mismo documento.
-//
-// 🔹 En la sustentación puedo decir:
+
 // "El módulo de clientes gestiona el CRUD de compradores.
 //  El campo documento tiene restricción UNIQUE en la base de datos,
 //  garantizando que no se registren clientes duplicados.
@@ -127,9 +126,8 @@ const obtenerClientePorId = async (req, res) => {
 // Registra un nuevo cliente en el sistema.
 // El nombre y el documento son obligatorios.
 // El email, teléfono y dirección son opcionales.
-//
-// 🔹 En la sustentación puedo decir:
-// "Verificamos la unicidad del documento antes de hacer el INSERT
+
+// "Verificamos que el documento sea único, antes de hacer el INSERT
 //  para dar un mensaje de error más descriptivo que el error
 //  genérico que devolvería MySQL con la restricción UNIQUE."
 const crearCliente = async (req, res) => {
@@ -165,6 +163,35 @@ const crearCliente = async (req, res) => {
     return res.status(400).json({ exito: false, mensaje: 'El documento no puede superar los 20 caracteres' });
   }
 
+  // ─────────────────────────────────────────────────
+  // NORMALIZACIÓN Y VALIDACIÓN DE CAMPOS OPCIONALES
+  // ─────────────────────────────────────────────────
+
+  // Email: trim + lowercase + validación de formato
+  let emailNormalizado = null;
+  if (email && email.trim() !== '') {
+    emailNormalizado = email.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailNormalizado)) {
+      return res.status(400).json({ exito: false, mensaje: 'El formato del email no es válido' });
+    }
+  }
+
+  // Teléfono: eliminar espacios, guiones y caracteres no numéricos + validar 10 dígitos
+  let telefonoNormalizado = null;
+  if (telefono && telefono.trim() !== '') {
+    telefonoNormalizado = telefono.replace(/[\s\-\(\)\.]/g, '');
+    if (!/^\d+$/.test(telefonoNormalizado)) {
+      return res.status(400).json({ exito: false, mensaje: 'El teléfono solo debe contener números' });
+    }
+    if (telefonoNormalizado.length !== 10) {
+      return res.status(400).json({ exito: false, mensaje: 'El teléfono debe tener exactamente 10 dígitos' });
+    }
+  }
+
+  // Dirección: trim
+  const direccionNormalizada = direccion && direccion.trim() !== '' ? direccion.trim() : null;
+
   try {
     // Verificar que no exista ya un cliente con ese número de documento.
     // Lo hacemos ANTES de insertar para dar un mensaje claro.
@@ -192,9 +219,9 @@ const crearCliente = async (req, res) => {
       [
         nombre_completo.trim(),
         documento.trim(),
-        email     || null,
-        telefono  || null,
-        direccion || null
+        emailNormalizado,
+        telefonoNormalizado,
+        direccionNormalizada
       ]
     );
 
@@ -247,6 +274,35 @@ const actualizarCliente = async (req, res) => {
     });
   }
 
+  // ─────────────────────────────────────────────────
+  // NORMALIZACIÓN Y VALIDACIÓN DE CAMPOS OPCIONALES
+  // ─────────────────────────────────────────────────
+
+  // Email: trim + lowercase + validación de formato
+  let emailNormalizado = null;
+  if (email && email.trim() !== '') {
+    emailNormalizado = email.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailNormalizado)) {
+      return res.status(400).json({ exito: false, mensaje: 'El formato del email no es válido' });
+    }
+  }
+
+  // Teléfono: eliminar espacios, guiones y caracteres no numéricos + validar 10 dígitos
+  let telefonoNormalizado = null;
+  if (telefono && telefono.trim() !== '') {
+    telefonoNormalizado = telefono.replace(/[\s\-\(\)\.]/g, '');
+    if (!/^\d+$/.test(telefonoNormalizado)) {
+      return res.status(400).json({ exito: false, mensaje: 'El teléfono solo debe contener números' });
+    }
+    if (telefonoNormalizado.length !== 10) {
+      return res.status(400).json({ exito: false, mensaje: 'El teléfono debe tener exactamente 10 dígitos' });
+    }
+  }
+
+  // Dirección: trim
+  const direccionNormalizada = direccion && direccion.trim() !== '' ? direccion.trim() : null;
+
   try {
     // Verificar que el cliente que queremos actualizar existe
     const [existe] = await db.query(
@@ -286,9 +342,9 @@ const actualizarCliente = async (req, res) => {
       [
         nombre_completo.trim(),
         documento.trim(),
-        email     || null,
-        telefono  || null,
-        direccion || null,
+        emailNormalizado,
+        telefonoNormalizado,
+        direccionNormalizada,
         id
       ]
     );
@@ -328,8 +384,7 @@ const actualizarCliente = async (req, res) => {
 // La base de datos tiene una clave foránea (FK) en mdc_ventas
 // que impide borrar un cliente referenciado en alguna venta.
 // Esto protege el historial de transacciones.
-//
-// 🔹 En la sustentación puedo decir:
+
 // "No podemos eliminar un cliente que haya comprado,
 //  porque la base de datos protege la integridad referencial.
 //  Capturamos ese error de MySQL y devolvemos un mensaje

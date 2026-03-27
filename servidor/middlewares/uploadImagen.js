@@ -24,8 +24,7 @@
 // cualquiera puede renombrar un archivo .exe a .jpg.
 // Por eso también validamos el MIME type, que viene del contenido
 // real del archivo. Un atacante tendría que falsificar AMBOS.
-//
-// 🔹 En la sustentación puedo decir:
+
 // "Para la subida de portadas usamos Multer con doble validación:
 //  verificamos tanto la extensión del nombre del archivo como el
 //  MIME type de su contenido. Esto evita que alguien suba un
@@ -39,72 +38,72 @@ const path   = require('path');
 const fs     = require('fs');
 
 // ─────────────────────────────────────────────────────────
-// DIRECTORIO DE ALMACENAMIENTO
+// MODO DE ALMACENAMIENTO: CLOUDINARY o DISCO LOCAL
 // ─────────────────────────────────────────────────────────
-// path.join(__dirname, '..', 'uploads', 'portadas') construye
-// la ruta absoluta al directorio de portadas:
-//   __dirname = ruta de ESTE archivo (middlewares/)
-//   '..'      = sube un nivel (servidor/)
-//   'uploads/portadas' = subcarpeta de imágenes
-//
-// Si la carpeta no existe al arrancar el servidor, la creamos
-// automáticamente. recursive: true crea todos los niveles necesarios
-// (si 'uploads' tampoco existe, la crea también).
-const DIR_PORTADAS = path.join(__dirname, '..', 'uploads', 'portadas');
+// Si las tres variables de Cloudinary están en el .env,
+// las imágenes se suben directo a la nube (Cloudinary).
+// Si no están configuradas, se guardan en disco local
+// (comportamiento original — retrocompatibilidad).
+const usarCloudinary = !!(
+  process.env.CLOUDINARY_CLOUD_NAME &&
+  process.env.CLOUDINARY_API_KEY    &&
+  process.env.CLOUDINARY_API_SECRET
+);
 
-if (!fs.existsSync(DIR_PORTADAS)) {
-  fs.mkdirSync(DIR_PORTADAS, { recursive: true });
+let storage;
+
+if (usarCloudinary) {
+  // ── MODO NUBE: Cloudinary ──
+  // multer-storage-cloudinary conecta Multer directamente con Cloudinary.
+  // El archivo nunca toca el disco del servidor: va de la memoria RAM
+  // del proceso directo a Cloudinary mediante su API.
+  // req.file.path    → URL pública segura (https://res.cloudinary.com/...)
+  // req.file.filename → public_id asignado por Cloudinary (para borrar después)
+  const cloudinary = require('cloudinary').v2;
+  const { CloudinaryStorage } = require('multer-storage-cloudinary');
+
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key:    process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+  });
+
+  storage = new CloudinaryStorage({
+    cloudinary,
+    params: {
+      folder:          'sgi_portadas',   // Carpeta dentro de tu cuenta Cloudinary
+      allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+      // Redimensiona al subir: max 400×600 px sin distorsionar
+      transformation: [{ width: 400, height: 600, crop: 'limit' }]
+    }
+  });
+
+} else {
+  // ── MODO LOCAL: disco del servidor (comportamiento original) ──
+  const DIR_PORTADAS = path.join(__dirname, '..', 'uploads', 'portadas');
+  if (!fs.existsSync(DIR_PORTADAS)) {
+    fs.mkdirSync(DIR_PORTADAS, { recursive: true });
+  }
+
+  storage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, DIR_PORTADAS),
+    filename: (req, file, cb) => {
+      const ext    = path.extname(file.originalname).toLowerCase();
+      const nombre = `portada-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+      cb(null, nombre);
+    }
+  });
 }
 
 // ─────────────────────────────────────────────────────────
-// CONFIGURACIÓN DE ALMACENAMIENTO EN DISCO
+// FILTRO DE TIPO DE ARCHIVO (aplica para ambos modos)
 // ─────────────────────────────────────────────────────────
-// diskStorage permite controlar dónde y con qué nombre se guarda
-// el archivo. La alternativa sería memoryStorage (en RAM),
-// pero para imágenes de portada el disco es más apropiado.
-const storage = multer.diskStorage({
-
-  // destination: dónde guardar el archivo en el servidor
-  destination: (req, file, cb) => {
-    // cb(error, ruta) → cb(null, ruta) cuando todo está bien
-    cb(null, DIR_PORTADAS);
-  },
-
-  // filename: con qué nombre guardar el archivo
-  // Usamos timestamp + número aleatorio para garantizar unicidad.
-  // Si dos admins suben "portada.jpg" al mismo tiempo, no se pisan.
-  // Formato: portada-1709150400000-847392847.jpg
-  filename: (req, file, cb) => {
-    const ext    = path.extname(file.originalname).toLowerCase();
-    const nombre = `portada-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
-    cb(null, nombre);
-  }
-});
-
-// ─────────────────────────────────────────────────────────
-// FILTRO DE TIPO DE ARCHIVO
-// ─────────────────────────────────────────────────────────
-// Se ejecuta por cada archivo recibido ANTES de guardarlo.
-// cb(null, true)  → aceptar el archivo
-// cb(error, false) → rechazar el archivo con un error
 const filtroImagen = (req, file, cb) => {
-  // Validación 1: extensión del nombre original del archivo.
-  // file.originalname es el nombre que tenía en el dispositivo del usuario.
-  const extValida = /\.(jpg|jpeg|png|webp)$/.test(
-    path.extname(file.originalname).toLowerCase()
-  );
-
-  // Validación 2: MIME type (tipo real del contenido del archivo).
-  // file.mimetype lo determina el browser/cliente al enviar el archivo.
-  // image/jpeg, image/png, image/webp son los tipos permitidos.
+  const extValida  = /\.(jpg|jpeg|png|webp)$/.test(path.extname(file.originalname).toLowerCase());
   const mimeValido = /^image\/(jpeg|png|webp)$/.test(file.mimetype);
-
-  // Solo aceptamos si AMBAS validaciones pasan.
   if (extValida && mimeValido) {
-    cb(null, true);   // Archivo aceptado
+    cb(null, true);
   } else {
-    // El error llegará al manejador de errores de Express.
-    // El controlador de libros captura este error y responde con 400.
     cb(new Error('Solo se permiten imágenes JPG, PNG o WEBP'), false);
   }
 };
@@ -112,29 +111,12 @@ const filtroImagen = (req, file, cb) => {
 // ─────────────────────────────────────────────────────────
 // INSTANCIA FINAL DE MULTER
 // ─────────────────────────────────────────────────────────
-// Juntamos la configuración de disco, el filtro y el límite de tamaño.
-// 2 * 1024 * 1024 = 2,097,152 bytes = 2 MB
-// Una portada de libro razonablemente optimizada pesa menos de 500 KB,
-// así que 2 MB es un límite holgado pero que evita archivos enormes.
 const uploadPortada = multer({
-  storage,               // Cómo y dónde guardar
-  fileFilter: filtroImagen, // Qué archivos aceptar
-  limits: {
-    fileSize: 2 * 1024 * 1024   // 2 MB máximo por archivo
-  }
+  storage,
+  fileFilter: filtroImagen,
+  limits: { fileSize: 2 * 1024 * 1024 }  // 2 MB máximo
 });
 
-// ─────────────────────────────────────────────────────────
-// USO EN LAS RUTAS
-// ─────────────────────────────────────────────────────────
-// En librosRutas.js se usa así:
-//   uploadPortada.single('portada')
-//   El 'portada' es el nombre del campo en el formulario HTML/FormData.
-//   Si el formulario es JSON (sin imagen), Multer lo deja pasar sin error.
-//   Si hay imagen, la guarda y pone los datos en req.file.
-//
-// Después del middleware, en el controlador:
-//   req.file.filename → nombre del archivo guardado en disco
-//   req.file.path     → ruta completa en el servidor
-//   req.file.size     → tamaño en bytes
-module.exports = { uploadPortada };
+// usarCloudinary se exporta para que librosControlador sepa
+// si guardar el filename (local) o la URL completa (Cloudinary).
+module.exports = { uploadPortada, usarCloudinary };

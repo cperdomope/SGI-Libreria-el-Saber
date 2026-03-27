@@ -51,12 +51,15 @@ const IconoEliminar = () => (
   </svg>
 );
 
+// Cuantos clientes mostrar por pagina en la tabla
+const ELEMENTOS_POR_PAGINA = 5;
+
 // =====================================================
 // COMPONENTE PRINCIPAL
 // =====================================================
 const PaginaClientes = () => {
 
-  // ── Verificación de permisos (RBAC) ──
+  // ── Verificacion de permisos (RBAC) ──
   const { tienePermiso } = useAuth();
 
   // ── ESTADOS DEL COMPONENTE ──
@@ -77,12 +80,11 @@ const PaginaClientes = () => {
   });
 
   // ── BUSCADOR ──
-  // Permite buscar clientes por nombre o documento sin recargar la página
+  // Permite buscar clientes por nombre o documento sin recargar la pagina
   const [busqueda, setBusqueda] = useState('');
 
-  // ── PAGINACIÓN (5 clientes por página) ──
+  // ── PAGINACION (del lado del cliente) ──
   const [paginaActual, setPaginaActual] = useState(1);
-  const elementosPorPagina = 5;
 
   // ── FILTRADO CON useMemo ──
   // useMemo memoriza el resultado del filtro para no recalcular
@@ -100,10 +102,10 @@ const PaginaClientes = () => {
 
   // Calcular qué clientes mostrar en la página actual
   // (se aplica SOBRE los resultados filtrados, no sobre todos)
-  const indiceInicio = (paginaActual - 1) * elementosPorPagina;
-  const indiceFin = indiceInicio + elementosPorPagina;
+  const indiceInicio = (paginaActual - 1) * ELEMENTOS_POR_PAGINA;
+  const indiceFin = indiceInicio + ELEMENTOS_POR_PAGINA;
   const clientesPaginados = clientesFiltrados.slice(indiceInicio, indiceFin);
-  const totalPaginas = Math.ceil(clientesFiltrados.length / elementosPorPagina);
+  const totalPaginas = Math.ceil(clientesFiltrados.length / ELEMENTOS_POR_PAGINA);
 
   // Se ejecuta al montar el componente (primera carga de la página)
   useEffect(() => {
@@ -181,18 +183,51 @@ const PaginaClientes = () => {
     setError(null);
 
     // Validaciones básicas de Frontend
-    if (!formDatos.nombre_completo || !formDatos.documento) {
+    if (!formDatos.nombre_completo?.trim() || !formDatos.documento?.trim()) {
       setError("El nombre y el documento son obligatorios.");
       return;
     }
 
+    // Validar formato de email (si se proporcionó)
+    if (formDatos.email && formDatos.email.trim() !== '') {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formDatos.email.trim())) {
+        setError("El formato del email no es válido.");
+        return;
+      }
+    }
+
+    // Validar teléfono: solo números, exactamente 10 dígitos (si se proporcionó)
+    let telefonoLimpio = '';
+    if (formDatos.telefono && formDatos.telefono.trim() !== '') {
+      telefonoLimpio = formDatos.telefono.replace(/[\s\-\(\)\.]/g, '');
+      if (!/^\d+$/.test(telefonoLimpio)) {
+        setError("El teléfono solo debe contener números.");
+        return;
+      }
+      if (telefonoLimpio.length !== 10) {
+        setError("El teléfono debe tener exactamente 10 dígitos.");
+        return;
+      }
+    }
+
+    // Normalizar datos antes de enviar
+    const datosNormalizados = {
+      ...formDatos,
+      nombre_completo: formDatos.nombre_completo.trim(),
+      documento: formDatos.documento.trim(),
+      email: formDatos.email?.trim().toLowerCase() || '',
+      telefono: telefonoLimpio || '',
+      direccion: formDatos.direccion?.trim() || ''
+    };
+
     try {
       if (formDatos.id) {
         // Actualizar cliente existente
-        await api.put(`/clientes/${formDatos.id}`, formDatos);
+        await api.put(`/clientes/${formDatos.id}`, datosNormalizados);
       } else {
         // Crear nuevo cliente
-        await api.post('/clientes', formDatos);
+        await api.post('/clientes', datosNormalizados);
       }
 
       // Recargar tabla y cerrar modal
@@ -271,13 +306,16 @@ const PaginaClientes = () => {
                 </tr>
               </thead>
               <tbody>
+                {/* Tres estados posibles: cargando, sin resultados, o lista */}
                 {cargando ? (
                   <tr>
                     <td colSpan="5" className="text-center py-4">Cargando datos...</td>
                   </tr>
-                ) : clientes.length === 0 ? (
+                ) : clientesFiltrados.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="text-center py-4 text-muted">No hay clientes registrados.</td>
+                    <td colSpan="5" className="text-center py-4 text-muted">
+                      {busqueda ? `No se encontraron clientes para "${busqueda}"` : 'No hay clientes registrados.'}
+                    </td>
                   </tr>
                 ) : (
                   clientesPaginados.map((cliente) => (
@@ -344,8 +382,11 @@ const PaginaClientes = () => {
       </div>
 
       {/* Modal Personalizado (Usando clases Bootstrap sin JS externo) */}
+      {/* ── Modal de crear/editar cliente ── */}
+      {/* A diferencia de PaginaAutores (que usa data-bs-toggle de Bootstrap),
+          aqui controlamos el modal con estado React (mostrarModal).
+          Ambos enfoques son validos. Este da mas control sobre la logica. */}
       {mostrarModal && (
-        <>
           <div className="modal fade show d-block" tabIndex="-1" role="dialog" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
             <div className="modal-dialog modal-dialog-centered modal-fullscreen-sm-down" role="document">
               <div className="modal-content shadow">
@@ -397,13 +438,16 @@ const PaginaClientes = () => {
                       </div>
                       <div className="col-md-6 mb-3">
                         <label className="form-label small text-muted text-uppercase fw-bold">Teléfono</label>
-                        <input 
-                          type="tel" 
+                        <input
+                          type="tel"
                           name="telefono"
-                          className="form-control" 
-                          value={formDatos.telefono} 
+                          className="form-control"
+                          value={formDatos.telefono}
                           onChange={manejarCambioInput}
+                          placeholder="10 dígitos, ej: 3124565570"
+                          maxLength={15}
                         />
+                        <small className="text-muted">Solo números, exactamente 10 dígitos</small>
                       </div>
                     </div>
 
@@ -428,7 +472,6 @@ const PaginaClientes = () => {
               </div>
             </div>
           </div>
-        </>
       )}
     </div>
   );

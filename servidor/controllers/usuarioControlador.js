@@ -15,8 +15,7 @@
 // Diferencia entre "usuario" y "cliente":
 //   - Usuario: empleado que usa el sistema (login, sesiones)
 //   - Cliente: persona que compra en la librería (registrado en ventas)
-//
-// 🔹 En la sustentación puedo decir:
+
 // "El módulo de usuarios permite al administrador gestionar
 //  los accesos al sistema: crear cuentas para nuevos vendedores,
 //  desactivar cuentas sin borrarlas, y cambiar roles.
@@ -39,8 +38,7 @@ const SALT_ROUNDS = 10;
 // Ruta: GET /api/usuarios (solo Admin)
 // Devuelve todos los usuarios con su rol y estado.
 // NUNCA incluye el hash de la contraseña por seguridad.
-//
-// 🔹 En la sustentación puedo decir:
+
 // "La consulta usa JOIN con mdc_roles para mostrar el nombre
 //  del rol en lugar de solo el número. Nunca devolvemos
 //  el hash de la contraseña, aunque esté en la misma tabla."
@@ -82,8 +80,7 @@ exports.obtenerUsuarios = async (req, res) => {
 // Ruta: POST /api/usuarios (solo Admin)
 // El administrador puede crear nuevas cuentas para vendedores u otros admins.
 // El proceso es igual al registro: validar → verificar duplicado → hashear → insertar.
-//
-// 🔹 En la sustentación puedo decir:
+
 // "El administrador puede crear usuarios desde el panel de gestión.
 //  El sistema valida el formato del email con expresión regular,
 //  verifica que no exista ya esa cuenta, y encripta la contraseña
@@ -100,10 +97,13 @@ exports.crearUsuario = async (req, res) => {
     });
   }
 
+  // Normalizamos el email: trim + lowercase para evitar duplicados por mayúsculas
+  const emailNormalizado = email.trim().toLowerCase();
+
   // Validar que el email tenga un formato correcto usando expresión regular.
   // La regex verifica: algo@algo.algo (sin espacios, con @, con punto)
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
+  if (!emailRegex.test(emailNormalizado)) {
     return res.status(400).json({ exito: false, mensaje: 'Formato de email inválido' });
   }
 
@@ -116,7 +116,7 @@ exports.crearUsuario = async (req, res) => {
     // Verificar que el email no esté ya registrado en el sistema
     const [existe] = await db.query(
       'SELECT id FROM mdc_usuarios WHERE email = ?',
-      [email]
+      [emailNormalizado]
     );
 
     if (existe.length > 0) {
@@ -139,7 +139,7 @@ exports.crearUsuario = async (req, res) => {
     const [resultado] = await db.query(
       `INSERT INTO mdc_usuarios (nombre_completo, email, password_hash, rol_id, estado)
        VALUES (?, ?, ?, ?, 1)`,
-      [nombre_completo.trim(), email.toLowerCase().trim(), passwordHash, parseInt(rol_id)]
+      [nombre_completo.trim(), emailNormalizado, passwordHash, parseInt(rol_id)]
     );
 
     res.status(201).json({
@@ -168,17 +168,22 @@ exports.crearUsuario = async (req, res) => {
 // flujos distintos con requisitos de seguridad diferentes.
 // El cambio de contraseña requiere verificar la contraseña actual.
 exports.actualizarUsuario = async (req, res) => {
-  // Convertimos el ID de string (viene de la URL) a número entero
+  // El middleware validarParametroId ya verifico que el ID sea un numero valido
   const id = parseInt(req.params.id, 10);
-  if (isNaN(id) || id <= 0) {
-    return res.status(400).json({ exito: false, mensaje: 'ID inválido' });
-  }
-
   const { nombre_completo, email, rol_id } = req.body;
 
   // Todos los campos son obligatorios para la actualización
   if (!nombre_completo || !email || !rol_id) {
     return res.status(400).json({ exito: false, mensaje: 'nombre_completo, email y rol_id son requeridos' });
+  }
+
+  // Normalizamos el email: trim + lowercase
+  const emailNormalizado = email.trim().toLowerCase();
+
+  // Validar formato de email
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(emailNormalizado)) {
+    return res.status(400).json({ exito: false, mensaje: 'Formato de email inválido' });
   }
 
   try {
@@ -192,7 +197,7 @@ exports.actualizarUsuario = async (req, res) => {
     // "AND id != ?" evita que el mismo usuario sea detectado como conflicto.
     const [emailDuplicado] = await db.query(
       'SELECT id FROM mdc_usuarios WHERE email = ? AND id != ?',
-      [email, id]
+      [emailNormalizado, id]
     );
     if (emailDuplicado.length > 0) {
       return res.status(409).json({ exito: false, mensaje: 'El email ya está en uso' });
@@ -201,7 +206,7 @@ exports.actualizarUsuario = async (req, res) => {
     // Actualizamos el usuario con los nuevos datos
     await db.query(
       'UPDATE mdc_usuarios SET nombre_completo = ?, email = ?, rol_id = ? WHERE id = ?',
-      [nombre_completo.trim(), email.toLowerCase().trim(), parseInt(rol_id), id]
+      [nombre_completo.trim(), emailNormalizado, parseInt(rol_id), id]
     );
 
     res.json({ exito: true, mensaje: 'Usuario actualizado exitosamente' });
@@ -225,19 +230,16 @@ exports.actualizarUsuario = async (req, res) => {
 // Si un empleado hizo ventas y luego se va de la empresa,
 // no queremos perder el historial de sus ventas al borrar su cuenta.
 // Simplemente la desactivamos.
-//
-// 🔹 En la sustentación puedo decir:
+
 // "Implementamos soft-disable en lugar de borrado físico.
 //  Al desactivar un usuario, estado pasa de 1 a 0.
 //  El login verifica el estado y rechaza usuarios inactivos.
 //  Esto preserva el historial de ventas asociado al usuario."
 exports.cambiarEstado = async (req, res) => {
+  // El middleware validarParametroId ya verifico que el ID sea un numero valido
   const id = parseInt(req.params.id, 10);
-  if (isNaN(id) || id <= 0) {
-    return res.status(400).json({ exito: false, mensaje: 'ID inválido' });
-  }
 
-  // Protección importante: el administrador no puede desactivarse a sí mismo.
+  // Proteccion importante: el administrador no puede desactivarse a si mismo.
   // req.usuario.id viene del token JWT, identificando quién hace la petición.
   // Si se desactivara a sí mismo, quedaría bloqueado del sistema sin poder revertirlo.
   if (id === req.usuario.id) {
@@ -282,8 +284,7 @@ exports.cambiarEstado = async (req, res) => {
 // El proceso exige la contraseña actual como verificación de identidad.
 // Así, aunque alguien robe la sesión, no puede cambiar la contraseña
 // sin conocer la contraseña actual.
-//
-// 🔹 En la sustentación puedo decir:
+
 // "Para cambiar la contraseña, el sistema exige la contraseña actual
 //  como segundo factor de verificación. Esto protege la cuenta incluso
 //  si el token JWT es interceptado, porque el atacante también necesitaría

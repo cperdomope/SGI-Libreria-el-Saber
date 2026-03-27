@@ -32,8 +32,11 @@ const categoriaControlador = require('../controllers/categoriaControlador');
 const verificarToken = require('../middlewares/verificarToken');
 const { soloAdministrador, administradorOVendedor } = require('../middlewares/verificarRol');
 
+// Valida que el parametro :id sea un numero entero positivo
+const { validarId } = require('../middlewares/validarParametroId');
+
 // ─────────────────────────────────────────────────────
-// RUTA GET: Listar todas las categorías
+// RUTA GET: Listar todas las categorias
 // ─────────────────────────────────────────────────────
 // Acceso: Admin y Vendedores (ambos necesitan ver la lista)
 router.get('/', verificarToken, administradorOVendedor, categoriaControlador.obtenerCategorias);
@@ -42,17 +45,17 @@ router.get('/', verificarToken, administradorOVendedor, categoriaControlador.obt
 // RUTAS DE ESCRITURA: Solo Administradores
 // ─────────────────────────────────────────────────────
 
-// POST: Crear una categoría nueva
+// POST: Crear una categoria nueva
 // Body esperado: { nombre }
 router.post('/', verificarToken, soloAdministrador, categoriaControlador.crearCategoria);
 
-// PUT: Actualizar nombre de una categoría existente
-// Params: :id → ID de la categoría a modificar
-router.put('/:id', verificarToken, soloAdministrador, categoriaControlador.actualizarCategoria);
+// PUT: Actualizar nombre de una categoria existente
+// Params: :id → ID de la categoria a modificar
+router.put('/:id', verificarToken, soloAdministrador, validarId('categoria'), categoriaControlador.actualizarCategoria);
 
-// DELETE: Eliminar una categoría
-// Params: :id → ID de la categoría a eliminar
-router.delete('/:id', verificarToken, soloAdministrador, categoriaControlador.eliminarCategoria);
+// DELETE: Eliminar una categoria
+// Params: :id → ID de la categoria a eliminar
+router.delete('/:id', verificarToken, soloAdministrador, validarId('categoria'), categoriaControlador.eliminarCategoria);
 
 // Exportamos el router para que app.js lo monte en /api/categorias
 module.exports = router;

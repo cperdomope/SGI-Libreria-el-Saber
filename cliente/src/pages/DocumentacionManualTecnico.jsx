@@ -1,12 +1,35 @@
-import React from 'react';
+// =====================================================
+// PAGINA: Manual Tecnico (Documentacion SENA)
+// =====================================================
+// El Manual Tecnico es un documento obligatorio en proyectos SENA que
+// describe la arquitectura interna del sistema. A diferencia del Manual
+// de Usuario (que explica COMO usar el sistema), el Manual Tecnico
+// explica COMO esta construido: tecnologias, estructura de carpetas,
+// base de datos, API, seguridad y despliegue.
+//
+// Audiencia: desarrolladores, instructores tecnicos y jurados SENA
+// que necesitan entender las decisiones tecnicas del proyecto.
+//
+// Este componente no tiene logica (useState, useEffect, etc.) porque
+// es contenido 100% estatico. Es un componente "presentacional puro":
+// solo retorna JSX con HTML y clases Bootstrap para dar formato.
+// Se carga con lazy() desde Acceso.jsx (code splitting).
+//
+// Conceptos aplicados:
+//   - Componente presentacional puro (sin estado ni efectos)
+//   - Grid system de Bootstrap (row + col-md-4) para layouts responsivos
+//   - Cards de Bootstrap para organizar contenido visualmente
+//   - Template literals multilínea en JSX con {`texto`} dentro de <pre>
+//   - Etiqueta <code> para resaltar nombres tecnicos inline
+//   - Etiqueta <pre> para bloques de codigo con formato preservado
+// =====================================================
 
 // =====================================================
-// PAGINA: Manual Tecnico
+// COMPONENTE: DocumentacionManualTecnico
 // =====================================================
-// Explica como esta construido el sistema por dentro.
-// Pensado para que un desarrollador o estudiante entienda
-// la estructura, las tecnologias y como funciona todo.
-// =====================================================
+// Al no tener imports de React ni hooks, este archivo demuestra que
+// en React 19 + Vite solo necesitamos escribir JSX y exportar.
+// El JSX transform de Vite se encarga de compilar el JSX a JavaScript.
 
 const DocumentacionManualTecnico = () => {
   return (
@@ -17,7 +40,12 @@ const DocumentacionManualTecnico = () => {
         como esta organizado el codigo y como funciona cada parte.
       </p>
 
-      {/* ── SECCION 1: DESCRIPCION GENERAL ── */}
+      {/* -- SECCION 1: DESCRIPCION GENERAL --
+          Cada seccion usa el componente Card de Bootstrap 5:
+          - card: contenedor con bordes y sombra
+          - card-header: encabezado coloreado (bg-primary = azul)
+          - card-body: contenido con padding interno
+          shadow-sm: sombra sutil para dar profundidad visual */}
       <div className="card mb-4 shadow-sm">
         <div className="card-header bg-primary text-white fw-bold">
           1. Descripcion general del sistema
@@ -41,7 +69,14 @@ const DocumentacionManualTecnico = () => {
         </div>
       </div>
 
-      {/* ── SECCION 2: ARQUITECTURA ── */}
+      {/* -- SECCION 2: ARQUITECTURA --
+          Aqui usamos el Grid System de Bootstrap para mostrar 3 cards
+          lado a lado. El sistema de grilla divide la pantalla en 12 columnas:
+          - col-md-4 = cada card ocupa 4 de 12 columnas (1/3 del ancho)
+          - En pantallas menores a "md" (768px), las cards se apilan verticalmente
+          - row: contenedor flex que alinea las columnas
+          - g-3: gap (espacio) de 1rem entre las cards
+          - h-100: hace que todas las cards tengan la misma altura */}
       <div className="card mb-4 shadow-sm">
         <div className="card-header bg-primary text-white fw-bold">
           2. Arquitectura del sistema (como esta dividido)
@@ -141,7 +176,13 @@ const DocumentacionManualTecnico = () => {
         </div>
       </div>
 
-      {/* ── SECCION 4: ESTRUCTURA DE CARPETAS ── */}
+      {/* -- SECCION 4: ESTRUCTURA DE CARPETAS --
+          Usamos la etiqueta <pre> (preformateado) para mostrar texto con
+          formato fijo (monoespaciado). Dentro, usamos un template literal
+          multilínea con {`texto`}. Las backticks (`) permiten escribir
+          texto en varias lineas y preservar los saltos de linea y espacios.
+          style={{ overflowX: 'auto' }} agrega scroll horizontal si el
+          contenido es mas ancho que la pantalla (importante en moviles). */}
       <div className="card mb-4 shadow-sm">
         <div className="card-header bg-primary text-white fw-bold">
           4. Estructura de carpetas del proyecto
@@ -259,7 +300,15 @@ mdc_proveedores --> mdc_movimientos`}
         </div>
       </div>
 
-      {/* ── SECCION 6: API REST ── */}
+      {/* -- SECCION 6: API REST --
+          REST (Representational State Transfer) es un estilo de arquitectura
+          para comunicar sistemas a traves de HTTP. Los 5 metodos principales:
+            GET    = Obtener datos (lectura)
+            POST   = Crear un recurso nuevo
+            PUT    = Actualizar un recurso completo
+            PATCH  = Actualizar parcialmente un recurso
+            DELETE = Eliminar un recurso
+          Cada endpoint combina un metodo HTTP + una URL + permisos requeridos. */}
       <div className="card mb-4 shadow-sm">
         <div className="card-header bg-primary text-white fw-bold">
           6. API REST (como se comunica el frontend con el backend)
@@ -303,7 +352,15 @@ mdc_proveedores --> mdc_movimientos`}
         </div>
       </div>
 
-      {/* ── SECCION 7: SEGURIDAD ── */}
+      {/* -- SECCION 7: SEGURIDAD --
+          La seguridad se implementa en CAPAS (defense in depth):
+          1. Frontend: validacion de formularios (UX, no seguridad real)
+          2. Red: CORS limita que dominios pueden hacer peticiones
+          3. Rate limiting: limita peticiones por IP (anti fuerza bruta)
+          4. Autenticacion: JWT verifica que el usuario esta logueado
+          5. Autorizacion: RBAC verifica que tiene permiso para la accion
+          6. Datos: bcrypt encripta contrasenas, transacciones ACID protegen integridad
+          Cada capa frena un tipo diferente de ataque. */}
       <div className="card mb-4 shadow-sm">
         <div className="card-header bg-primary text-white fw-bold">
           7. Medidas de seguridad implementadas
@@ -452,4 +509,6 @@ npm test`}
   );
 };
 
+// Se exporta como default para que lazy() en Acceso.jsx pueda importarlo.
+// Los imports dinamicos (import()) requieren que el modulo tenga un export default.
 export default DocumentacionManualTecnico;

@@ -13,8 +13,7 @@
 //
 // Relación: mdc_libros.autor_id → mdc_autores.id
 // (Un autor puede tener muchos libros, un libro tiene un autor)
-//
-// 🔹 En la sustentación puedo decir:
+
 // "Los autores son una entidad de catálogo que se relaciona
 //  con los libros. Al intentar eliminar un autor que tiene
 //  libros asociados, el sistema lo impide mostrando cuántos
@@ -111,16 +110,9 @@ exports.crearAutor = async (req, res) => {
 // Al actualizar el autor, todos sus libros reflejan el cambio
 // automáticamente porque usan el autor_id (no el texto).
 exports.actualizarAutor = async (req, res) => {
+  // El middleware validarParametroId ya verifico que el ID sea un numero valido
   const { id }     = req.params;
   const { nombre } = req.body;
-
-  // Validamos que el ID sea un número
-  if (!id || isNaN(parseInt(id))) {
-    return res.status(400).json({
-      exito:   false,
-      mensaje: 'ID de autor inválido'
-    });
-  }
 
   // Validamos que venga el nombre nuevo
   if (!nombre || nombre.trim() === '') {
@@ -175,14 +167,8 @@ exports.actualizarAutor = async (req, res) => {
 // La base de datos tiene una restricción de FK que lo impide.
 // Aquí lo verificamos primero para dar un mensaje más claro.
 exports.eliminarAutor = async (req, res) => {
+  // El middleware validarParametroId ya verifico que el ID sea un numero valido
   const { id } = req.params;
-
-  if (!id || isNaN(parseInt(id))) {
-    return res.status(400).json({
-      exito:   false,
-      mensaje: 'ID de autor inválido'
-    });
-  }
 
   try {
     // Verificamos cuántos libros están asociados a este autor

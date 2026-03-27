@@ -20,7 +20,7 @@
 //
 // =====================================================
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 // api: cliente HTTP con Axios (incluye token JWT automáticamente)
 import api from '../services/api';
 // useAuth: para verificar los permisos del usuario (RBAC)
@@ -40,30 +40,37 @@ const IconoEliminar = () => (
   </svg>
 );
 
+// Cuantas categorias mostrar por pagina en la tabla
+const ELEMENTOS_POR_PAGINA = 5;
+
 // =====================================================
 // COMPONENTE PRINCIPAL
 // =====================================================
 const PaginaCategorias = () => {
 
-  // ── Verificación de permisos (RBAC) ──
+  // ── Verificacion de permisos (RBAC) ──
   const { tienePermiso } = useAuth();
 
+  // useRef para cerrar el modal programaticamente despues de guardar.
+  // Preferimos useRef sobre document.getElementById() porque es la
+  // forma idiomatica de React para referenciar elementos del DOM.
+  const cerrarModalRef = useRef(null);
+
   // ── ESTADOS ──
-  const [categorias, setCategorias] = useState([]);     // Lista de categorías del backend
-  const [cargando, setCargando] = useState(true);       // Spinner mientras carga
+  const [categorias, setCategorias] = useState([]);
+  const [cargando, setCargando] = useState(true);
   // datosCategoria: formulario del modal
-  // id=null → crear nueva | id=número → editar existente
+  // id=null → crear nueva | id=numero → editar existente
   const [datosCategoria, setDatosCategoria] = useState({ id: null, nombre: '' });
 
-  // ── PAGINACIÓN (lado del cliente, 5 por página) ──
+  // ── PAGINACION (lado del cliente) ──
   const [paginaActual, setPaginaActual] = useState(1);
-  const elementosPorPagina = 5;
 
   // Calculamos qué categorías mostrar en la página actual
-  const indiceInicio = (paginaActual - 1) * elementosPorPagina;
-  const indiceFin = indiceInicio + elementosPorPagina;
+  const indiceInicio = (paginaActual - 1) * ELEMENTOS_POR_PAGINA;
+  const indiceFin = indiceInicio + ELEMENTOS_POR_PAGINA;
   const categoriasPaginadas = categorias.slice(indiceInicio, indiceFin);
-  const totalPaginas = Math.ceil(categorias.length / elementosPorPagina);
+  const totalPaginas = Math.ceil(categorias.length / ELEMENTOS_POR_PAGINA);
 
   // ─────────────────────────────────────────────────────
   // FUNCIÓN: Cargar categorías desde la API
@@ -116,7 +123,7 @@ const PaginaCategorias = () => {
         alert('Categoría creada exitosamente');
       }
       cargarCategorias();  // Recargar la lista
-      document.getElementById('cerrarModalBtn').click();  // Cerrar modal
+      cerrarModalRef.current?.click();
     } catch (error) {
       alert(error.response?.data?.error || 'Error al guardar');
     }
@@ -236,7 +243,7 @@ const PaginaCategorias = () => {
           <div className="modal-content">
             <div className="modal-header bg-primary text-white">
               <h5 className="modal-title">{datosCategoria.id ? 'Editar Categoría' : 'Nueva Categoría'}</h5>
-              <button type="button" className="btn-close btn-close-white" data-bs-dismiss="modal" id="cerrarModalBtn"></button>
+              <button ref={cerrarModalRef} type="button" className="btn-close btn-close-white" data-bs-dismiss="modal" />
             </div>
             <div className="modal-body">
               <form onSubmit={handleGuardar}>
