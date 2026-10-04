@@ -1,7 +1,7 @@
 # Propuesta Técnica (versión Demo) — "Tutor CUN IA"
 
 ## Contexto
-Proyecto **simulado / Demo** para estudiantes de **4.º semestre de Ingeniería de Sistemas con poca experiencia en programación**. Objetivo: construir en ~8 semanas un chatbot tutor que guíe con preguntas (no hace las tareas), consulte unos pocos documentos propios (RAG básico) y busque en la web con fuentes citadas. Se prioriza: **pocas herramientas, todo en Python, gratis o casi gratis, ejecutable en un portátil**, e incluye **MySQL** como base de datos relacional para demostrar diseño E-R, SQL y CRUD. Equipo: 3 estudiantes de Ingeniería de Sistemas y 2 de Diseño Gráfico (ver sección 6).
+Proyecto **simulado / Demo** para estudiantes de **4.º semestre de Ingeniería de Sistemas con poca experiencia en programación**. Objetivo: construir en ~8 semanas un chatbot tutor que guíe con preguntas (no hace las tareas), consulte unos pocos documentos propios (RAG básico) y busque en la web con fuentes citadas. Se prioriza: **pocas herramientas, todo en Python, gratis o casi gratis, la app se ejecuta en un portátil y la base de datos vive en la nube (Railway)**, e incluye **MySQL** como base de datos relacional para demostrar diseño E-R, SQL y CRUD. Equipo: 3 estudiantes de Ingeniería de Sistemas y 2 de Diseño Gráfico (ver sección 6).
 
 ---
 
@@ -69,12 +69,12 @@ Estudiante ──► Página web (Streamlit)
                     │
                     ▼
               app.py (Python)
-               ├─ Login / registro ──────────► MySQL (estudiantes)
+               ├─ Login / registro ──────────► MySQL en Railway (estudiantes)
                ├─ Lee perfil y temas difíciles ◄─ MySQL (temas_dificiles)
                ├─ Busca trozos en ChromaDB (documentos/)
-               ├─ Llama a la API de Claude
+               ├─ Llama a la API de Gemini
                │    ├─ System Prompt (reglas del tutor)
-               │    └─ Herramienta de búsqueda web integrada
+               │    └─ Búsqueda con Google integrada (grounding)
                └─ Guarda pregunta, respuesta y fuentes ─► MySQL (sesiones, mensajes)
 ```
 
@@ -84,12 +84,12 @@ Estudiante ──► Página web (Streamlit)
 |---|---|---|
 | Lenguaje | **Python** | Sintaxis sencilla, mucha documentación en español |
 | Interfaz | **Streamlit** (`st.chat_input`, `st.chat_message`) | Un chat web en ~30 líneas, sin HTML/JS |
-| LLM | **Claude Haiku 4.5** vía API (`anthropic` SDK) | Barato (la demo cuesta pocos dólares), buen español, trae **búsqueda web incorporada** (no hay que programar el buscador) |
+| LLM | **Google Gemini** (modelo Flash vigente) vía API (`google-genai` SDK); API key gratis en Google AI Studio | Plan gratuito con límites de uso, buen español y **búsqueda con Google integrada** (grounding) que devuelve los enlaces usados: no hay que programar un buscador. En el plan gratuito Google puede usar los datos para mejorar sus productos: **no ingresar datos personales reales** |
 | Base vectorial | **ChromaDB** (modo local) | `pip install chromadb`, sin servidor, embeddings incluidos |
 | Lectura de PDF | `pypdf` | Una función para extraer texto |
-| Base de datos relacional | **MySQL 8** + **MySQL Workbench** (o XAMPP) | Estándar en la industria; se diseña el modelo E-R y se practica SQL (CRUD, JOIN, GROUP BY) |
+| Base de datos relacional | **MySQL 8 en Railway** (nube) + **MySQL Workbench** como cliente | Los 5 integrantes usan la misma base de datos sin instalar el servidor; se diseña el modelo E-R y se practica SQL (CRUD, JOIN, GROUP BY) |
 | Conector | `mysql-connector-python` | Consultas parametrizadas (`%s`) para evitar inyección SQL |
-| Despliegue | Demo **local** (Streamlit + MySQL en el portátil). Opcional: Streamlit Community Cloud + MySQL gratuito en la nube (Aiven/Railway free tier) | Local es lo más simple para la sustentación; credenciales en `secrets.toml` |
+| Despliegue | App en **Streamlit Community Cloud** (gratis, desde GitHub) conectada a **MySQL en Railway** | Credenciales (host, puerto, usuario, contraseña) en `secrets.toml` local y en *Secrets* de Streamlit Cloud. Railway funciona con créditos: verificar el plan vigente y apagar el servicio al terminar el proyecto |
 
 **Alternativa sin código (si el equipo se atasca):** **Flowise** o **Dify** (arrastrar y soltar bloques: PDF → Chroma → LLM → chat). Útil para mostrar el concepto en 1 semana.
 
@@ -106,9 +106,57 @@ tutor-cun-demo/
 ├── pages/
 │   └── panel.py        # panel de estadísticas (consultas SQL)
 ├── documentos/         # PDFs de la base de conocimiento
-├── requirements.txt    # streamlit, anthropic, chromadb, pypdf, mysql-connector-python
-└── .streamlit/secrets.toml   # API key y credenciales MySQL (no subir a GitHub)
+├── requirements.txt    # streamlit, google-genai, chromadb, pypdf, mysql-connector-python
+└── .streamlit/secrets.toml   # API key de Gemini y credenciales de Railway (no subir a GitHub)
 ```
+
+### 3.0 Conexiones (ejemplo mínimo)
+`.streamlit/secrets.toml` (nunca subirlo a GitHub; agregarlo a `.gitignore`):
+```toml
+GEMINI_API_KEY = "..."
+MYSQL_HOST = "....proxy.rlwy.net"   # host público que muestra Railway
+MYSQL_PORT = "12345"
+MYSQL_USER = "root"
+MYSQL_PASSWORD = "..."
+MYSQL_DB = "tutor_cun"
+```
+
+Llamada a Gemini con búsqueda en Google (`app.py`):
+```python
+import streamlit as st
+from google import genai
+from google.genai import types
+
+client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+MODELO = "gemini-..."  # usar el modelo Flash vigente que indique Google AI Studio
+
+def preguntar_ia(system_prompt, pregunta):
+    respuesta = client.models.generate_content(
+        model=MODELO,
+        contents=pregunta,
+        config=types.GenerateContentConfig(
+            system_instruction=system_prompt,
+            tools=[types.Tool(google_search=types.GoogleSearch())],
+        ),
+    )
+    return respuesta.text
+```
+
+Conexión a MySQL en Railway (`db.py`):
+```python
+import mysql.connector
+import streamlit as st
+
+def conectar():
+    return mysql.connector.connect(
+        host=st.secrets["MYSQL_HOST"],
+        port=int(st.secrets["MYSQL_PORT"]),
+        user=st.secrets["MYSQL_USER"],
+        password=st.secrets["MYSQL_PASSWORD"],
+        database=st.secrets["MYSQL_DB"],
+    )
+```
+> Railway crea por defecto una base llamada `railway`. Se puede usar esa (cambiando `MYSQL_DB` y omitiendo `CREATE DATABASE` en `schema.sql`) o crear `tutor_cun` desde Workbench.
 
 ### 3.1 Modelo de datos MySQL
 
@@ -237,8 +285,8 @@ def guardar_mensaje(conn, id_sesion, rol, contenido, fuentes=None):
 
 | Semana | Fase | Tareas | Entregable |
 |---|---|---|---|
-| 1 | Preparación | Instalar Python, VS Code, Git, **MySQL + Workbench**; crear repo; obtener API key; repasar funciones, listas y diccionarios | "Hola mundo" en Streamlit |
-| 2 | Primer chat + diseño BD | Chat que llama a Claude con un System Prompt básico; **diagrama E-R y `schema.sql`** en Workbench | Bot que conversa + BD creada |
+| 1 | Preparación | Instalar Python, VS Code, Git y **MySQL Workbench**; crear la base MySQL en **Railway**; crear repo; obtener API key de **Gemini**; repasar funciones, listas y diccionarios | "Hola mundo" en Streamlit |
+| 2 | Primer chat + diseño BD | Chat que llama a Gemini con un System Prompt básico; **diagrama E-R y `schema.sql`** ejecutado en Railway desde Workbench | Bot que conversa + BD creada |
 | 3 | Datos | Recolectar/redactar los 5–15 documentos; escribir banco de preguntas guía | Carpeta `documentos/` |
 | 4 | RAG | `rag.py`: leer PDFs, dividir, guardar y buscar en Chroma; mostrar la fuente | Bot que responde con los PDFs |
 | 5 | Búsqueda web + guardrails | Activar la herramienta web search; reforzar reglas del prompt | Respuestas con enlaces citados |
@@ -251,7 +299,7 @@ def guardar_mensaje(conn, id_sesion, rol, contenido, fuentes=None):
 - % de veces que **NO** entregó la tarea resuelta (meta 100 %).
 - % de preguntas fuera de alcance bien redirigidas (meta ≥ 90 %).
 - Encuesta de 5 preguntas a compañeros (satisfacción 1–5).
-- **Pruebas de BD:** verificar en Workbench que cada conversación quede registrada, que las llaves foráneas funcionen y que las consultas del panel coincidan con los datos.
+- **Pruebas de BD:** verificar en Workbench (conectado a Railway) que cada conversación quede registrada, que las llaves foráneas funcionen y que las consultas del panel coincidan con los datos.
 
 ---
 
@@ -314,7 +362,7 @@ TEMA: <tema principal en máximo 4 palabras> | TIPO: <academica | fuera_alcance 
 ### 6.1 Roles
 | Código | Integrante | Rol | Responsable de |
 |---|---|---|---|
-| **S1** | Ing. Sistemas 1 | **Líder técnico / Integración IA** | `app.py`, conexión con Claude, System Prompt, búsqueda web, integración final, repositorio GitHub |
+| **S1** | Ing. Sistemas 1 | **Líder técnico / Integración IA** | `app.py`, conexión con Gemini, System Prompt, búsqueda web, integración final, repositorio GitHub |
 | **S2** | Ing. Sistemas 2 | **RAG y Pruebas** | `rag.py`, ChromaDB, carga de PDFs, plan de pruebas (30 preguntas), informe de evaluación |
 | **S3** | Ing. Sistemas 3 | **Base de Datos MySQL** | Modelo E-R, `schema.sql`, `db.py` (CRUD), panel de estadísticas, datos de prueba |
 | **D1** | Diseño Gráfico 1 | **UX/UI e Identidad visual** | Nombre/logo/avatar del tutor, paleta, wireframes y mockups en Figma, tema visual de Streamlit |
@@ -328,16 +376,16 @@ TEMA: <tema principal en máximo 4 palabras> | TIPO: <academica | fuera_alcance 
 | Quién | Tareas |
 |---|---|
 | Todos | Leer esta propuesta; acordar nombre del proyecto; crear tablero de tareas; definir canal de comunicación (WhatsApp/Discord) |
-| S1 | Crear repo GitHub con la estructura de carpetas; invitar al equipo; obtener API key; guía rápida de Git (clone, commit, push, pull) |
+| S1 | Crear repo GitHub con la estructura de carpetas; invitar al equipo; obtener API key de Gemini en Google AI Studio; guía rápida de Git (clone, commit, push, pull) |
 | S2 | Instalar Python, VS Code, Streamlit; hacer el "Hola mundo" y documentar la instalación paso a paso para el equipo |
-| S3 | Instalar MySQL 8 + Workbench; tutorial corto de SQL para el equipo (SELECT, INSERT, JOIN) |
+| S3 | Crear el servicio MySQL en **Railway**, conectarlo a Workbench y compartir las credenciales de forma privada con el equipo; tutorial corto de SQL (SELECT, INSERT, JOIN) |
 | D1 | Investigar 3 chatbots educativos de referencia (benchmark visual); proponer 2 nombres y moodboard |
 | D2 | Inventario de documentos a crear (lista de la sección 2.1); plantilla gráfica para documentos |
 
 **Semana 2 — Diseño**
 | Quién | Tareas |
 |---|---|
-| S1 | Primer chat en Streamlit que llama a Claude con un prompt básico |
+| S1 | Primer chat en Streamlit que llama a Gemini con un prompt básico |
 | S2 | Seleccionar la asignatura piloto; escribir con D2 el banco de 20 preguntas guía |
 | S3 | Diagrama **E-R** en Workbench; escribir `schema.sql`; revisarlo con S1 |
 | D1 | Logo, avatar del tutor y paleta de colores; **wireframes** de 3 pantallas (registro, chat, panel) |
@@ -364,7 +412,7 @@ TEMA: <tema principal en máximo 4 palabras> | TIPO: <academica | fuera_alcance 
 **Semana 5 — Búsqueda web y guardrails**
 | Quién | Tareas |
 |---|---|
-| S1 | Activar la herramienta de búsqueda web de Claude; mostrar enlaces citados en la respuesta |
+| S1 | Activar la búsqueda con Google (grounding) de Gemini; mostrar enlaces citados en la respuesta |
 | S2 | Redactar las **30 preguntas de prueba** (10 normales, 10 fuera de alcance, 10 "hazlo por mí") en hoja de cálculo |
 | S3 | Funciones `crear_sesion`, `guardar_mensaje`, `cerrar_sesion`; probar que cada conversación queda en MySQL |
 | D1 | Diseñar mensajes de bienvenida, estados vacíos, botones 👍/👎 y mensaje de "fuera de alcance" amigable |
@@ -384,7 +432,7 @@ TEMA: <tema principal en máximo 4 palabras> | TIPO: <academica | fuera_alcance 
 |---|---|
 | S1 | Corregir errores reportados; ajustar el System Prompt según resultados |
 | S2 | Segunda ronda de pruebas; calcular métricas (sección 4); **informe de evaluación** |
-| S3 | Pruebas de BD: llaves foráneas, consultas del panel vs. datos reales; respaldo `mysqldump` |
+| S3 | Pruebas de BD: llaves foráneas, consultas del panel vs. datos reales; respaldo con `mysqldump` desde Railway |
 | D1 | **Prueba de usabilidad** con 5 compañeros (tareas guiadas + encuesta 1–5); ajustes visuales |
 | D2 | Tabular la encuesta; terminar manual de usuario; guion del video |
 
