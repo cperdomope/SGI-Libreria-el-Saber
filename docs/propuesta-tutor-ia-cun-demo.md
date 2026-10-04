@@ -22,6 +22,20 @@ Proyecto **simulado / Demo** para estudiantes de **4.º semestre de Ingeniería 
 - **"Hazlo por mí":** explica la regla de integridad académica y ofrece guiar paso a paso.
 - **Implementación:** todo esto vive en el **System Prompt** (sección 5). Para la demo no se necesitan clasificadores ni modelos extra.
 
+### 1.3 Modelo de negocio simulado (freemium)
+Para alinear la demo con el Modelo Canvas (sección 7) se simulan planes y suscripciones. **No hay pagos reales**: activar un plan es solo un registro en MySQL.
+
+| Plan | Para quién | Qué incluye | Precio (ficticio) |
+|---|---|---|---|
+| **Prueba** | Todo usuario nuevo | 14 días con todas las funciones | Gratis |
+| **Gratuito** | Al terminar la prueba | 10 mensajes por día; tutor con pistas y búsqueda con fuentes | Gratis |
+| **Premium estudiante** | Estudiantes | Mensajes ilimitados + **retroalimentación de escritos con rúbrica** + historial completo | [$__ COP/mes] |
+| **Institucional** | Universidades / docentes | Acceso para sus estudiantes + panel de estadísticas para el docente | [Por convenio] |
+
+- **Regla ética:** ningún plan elimina los guardrails. Premium da más uso y funciones, **nunca** respuestas resueltas.
+- **En la app:** al registrarse se asigna el plan *Prueba*; antes de cada pregunta `app.py` revisa el plan y cuántos mensajes lleva hoy; si llega al límite muestra la página de planes con un botón "Activar Premium (simulado)".
+- **Retroalimentación de escritos:** el estudiante pega su texto y el tutor lo evalúa contra la rúbrica de la base de conocimiento, con comentarios y preguntas, sin reescribirlo.
+
 ---
 
 ## 2. Datos y Base de Conocimiento (RAG básico)
@@ -102,6 +116,7 @@ tutor-cun-demo/
 - `estudiantes` 1 ── N `sesiones` 1 ── N `mensajes`
 - `estudiantes` N ── N `temas` (tabla intermedia `temas_dificiles`)
 - `mensajes` 1 ── 0..1 `valoraciones` (👍/👎 del estudiante)
+- `planes` 1 ── N `suscripciones` N ── 1 `estudiantes` (modelo de negocio simulado)
 
 **`sql/schema.sql`:**
 ```sql
@@ -114,6 +129,7 @@ CREATE TABLE estudiantes (
   correo         VARCHAR(120) NOT NULL UNIQUE,
   carrera        VARCHAR(80)  NOT NULL,
   semestre       TINYINT      NOT NULL,
+  rol            ENUM('estudiante','docente') DEFAULT 'estudiante',
   fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -159,6 +175,26 @@ CREATE TABLE valoraciones (
   comentario    VARCHAR(255) NULL,
   FOREIGN KEY (id_mensaje) REFERENCES mensajes(id_mensaje)
 );
+
+-- Modelo de negocio simulado (sin pagos reales)
+CREATE TABLE planes (
+  id_plan          INT AUTO_INCREMENT PRIMARY KEY,
+  nombre           VARCHAR(40)  NOT NULL UNIQUE,   -- Prueba, Gratuito, Premium, Institucional
+  limite_diario    INT NULL,                       -- NULL = ilimitado
+  retroalimentacion_escritos BOOLEAN DEFAULT FALSE,
+  precio_mensual   DECIMAL(10,2) DEFAULT 0         -- valor ficticio
+);
+
+CREATE TABLE suscripciones (
+  id_suscripcion INT AUTO_INCREMENT PRIMARY KEY,
+  id_estudiante  INT NOT NULL,
+  id_plan        INT NOT NULL,
+  fecha_inicio   DATE NOT NULL,
+  fecha_fin      DATE NULL,                       -- Prueba: inicio + 14 días
+  estado         ENUM('activa','vencida','cancelada') DEFAULT 'activa',
+  FOREIGN KEY (id_estudiante) REFERENCES estudiantes(id_estudiante),
+  FOREIGN KEY (id_plan)       REFERENCES planes(id_plan)
+);
 ```
 
 **Funciones en `db.py` (CRUD que se demuestra):**
@@ -171,6 +207,10 @@ CREATE TABLE valoraciones (
 | `registrar_tema_dificil()` | `INSERT ... ON DUPLICATE KEY UPDATE veces_consultado = veces_consultado + 1` | Personalización |
 | `obtener_perfil()` | `SELECT` con `JOIN` a `temas_dificiles` y `temas` | Se inyecta en `{perfil}` del System Prompt |
 | `eliminar_historial()` | `DELETE` | Derecho del estudiante a borrar sus datos |
+| `asignar_prueba()` | `INSERT` en `suscripciones` con `fecha_fin = CURDATE() + INTERVAL 14 DAY` | Al registrarse |
+| `plan_actual()` | `SELECT` con `JOIN` a `planes` (suscripción activa y no vencida) | Antes de cada pregunta |
+| `mensajes_hoy()` | `SELECT COUNT(*)` de mensajes del estudiante con `DATE(fecha) = CURDATE()` | Controlar el límite diario |
+| `activar_premium()` | `UPDATE` (cerrar plan actual) + `INSERT` (nuevo plan) | Botón "Activar Premium (simulado)" |
 
 Ejemplo de consulta parametrizada:
 ```python
@@ -186,6 +226,8 @@ def guardar_mensaje(conn, id_sesion, rol, contenido, fuentes=None):
 - Mensajes por carrera: `JOIN` estudiantes → sesiones → mensajes con `GROUP BY carrera`.
 - % de respuestas útiles: `AVG(util)` en `valoraciones`.
 - Intentos de "hazlo por mí" bloqueados: `COUNT(*) WHERE tipo = 'hazlo_por_mi'`.
+- Usuarios por plan e ingresos simulados: `COUNT(*)` y `SUM(precio_mensual)` de suscripciones activas `GROUP BY` plan.
+- Acceso al panel: solo usuarios con `rol = 'docente'` (segmento *Profesores* del Canvas).
 
 **Cómo se clasifica `tipo` y el tema (simple):** se le pide al LLM que, además de la respuesta, devuelva una línea final `TEMA: <nombre> | TIPO: <academica/fuera_alcance/hazlo_por_mi>`; Python la separa y la guarda en MySQL.
 
@@ -200,7 +242,7 @@ def guardar_mensaje(conn, id_sesion, rol, contenido, fuentes=None):
 | 3 | Datos | Recolectar/redactar los 5–15 documentos; escribir banco de preguntas guía | Carpeta `documentos/` |
 | 4 | RAG | `rag.py`: leer PDFs, dividir, guardar y buscar en Chroma; mostrar la fuente | Bot que responde con los PDFs |
 | 5 | Búsqueda web + guardrails | Activar la herramienta web search; reforzar reglas del prompt | Respuestas con enlaces citados |
-| 6 | Integración MySQL | `db.py` (CRUD); registro/login; guardar sesiones, mensajes y temas difíciles; inyectar perfil en el prompt; panel de estadísticas | Bot que "recuerda" + panel SQL |
+| 6 | Integración MySQL + planes | `db.py` (CRUD); registro/login; guardar sesiones, mensajes y temas difíciles; inyectar perfil en el prompt; planes y límite diario (freemium simulado); panel de estadísticas | Bot que "recuerda" + planes + panel SQL |
 | 7 | Evaluación | Hoja de cálculo con **30 preguntas de prueba** (10 normales, 10 fuera de alcance, 10 "hazlo por mí"); marcar ✔/✘ | Informe de pruebas |
 | 8 | Despliegue y demo | Publicar en Streamlit Cloud; video corto y presentación | URL pública + sustentación |
 
@@ -331,11 +373,11 @@ TEMA: <tema principal en máximo 4 palabras> | TIPO: <academica | fuera_alcance 
 **Semana 6 — Integración MySQL y personalización**
 | Quién | Tareas |
 |---|---|
-| S1 | Leer la línea `TEMA \| TIPO` de la respuesta, ocultarla y enviarla a `db.py`; inyectar `obtener_perfil()` en `{perfil}` |
+| S1 | Leer la línea `TEMA \| TIPO` de la respuesta, ocultarla y enviarla a `db.py`; inyectar `obtener_perfil()` en `{perfil}`; validar plan y límite diario antes de llamar a la IA; modo "retroalimentación de escritos" para Premium |
 | S2 | Ejecutar la primera ronda de pruebas y reportar errores en el tablero |
-| S3 | `registrar_tema_dificil`, `obtener_perfil` (JOIN), `eliminar_historial`, tabla `valoraciones`; **panel de estadísticas** con 4 consultas y gráficos (`st.bar_chart`) |
-| D1 | Diseño del panel de estadísticas (orden, colores de gráficos, títulos) |
-| D2 | Borrador del **manual de usuario** (capturas + pasos) |
+| S3 | `registrar_tema_dificil`, `obtener_perfil` (JOIN), `eliminar_historial`, tabla `valoraciones`; tablas `planes` y `suscripciones` con `asignar_prueba`, `plan_actual`, `mensajes_hoy`, `activar_premium`; **panel de estadísticas** (solo docentes) con consultas y gráficos (`st.bar_chart`) |
+| D1 | Diseño del panel de estadísticas (orden, colores de gráficos, títulos) y de la **página de planes** (tarjetas Gratuito / Premium / Institucional) |
+| D2 | Borrador del **manual de usuario** (capturas + pasos); textos de la **página de planes**; 3 piezas para **redes sociales** (canal del Canvas) |
 
 **Semana 7 — Evaluación y ajustes**
 | Quién | Tareas |
@@ -371,3 +413,31 @@ TEMA: <tema principal en máximo 4 palabras> | TIPO: <academica | fuera_alcance 
 - D1 entrega mockups (sem. 3) antes de aplicar el tema visual (sem. 4).
 - S1 integra todo: las ramas deben unirse **cada viernes** para evitar conflictos al final.
 
+
+---
+
+## 7. Alineación con el Modelo de Negocio Canvas
+
+### 7.1 Revisión bloque por bloque
+| Bloque | Estado | Ajuste aplicado |
+|---|---|---|
+| Propuesta de valor | ✅ Alineado | "Retroalimentación sobre tus textos" se agrega como función Premium (sección 1.3) |
+| Actividades clave | ✅ Alineado | APA, diseño pedagógico, verificación y repositorios ya están en el RAG y el System Prompt |
+| Recursos clave | ✅ Alineado | Nube (BD/hosting), búsqueda web del LLM y equipo de 5 integrantes |
+| Socios clave | ✅ Alineado | Se unifican duplicados (infraestructura = nube) |
+| Relaciones con clientes | ⚠️ Parcial | Se implementa el **periodo de prueba de 14 días** en MySQL (`suscripciones`) |
+| Canales | ⚠️ Parcial | Sitio web = app Streamlit; redes sociales = piezas de D2; integración con universidades = plan Institucional (simulado) |
+| Segmento de clientes | ❌ Muy amplio | La demo se enfoca en **estudiantes universitarios** (principal) y **docentes** (panel). Bachillerato y autodidactas quedan como expansión futura |
+| Flujo de ingresos | ❌ No existía | Se agregan planes Gratuito / Premium / Institucional **simulados** (sección 1.3) |
+| Estructura de costos | ⚠️ Ajustar | Se elimina "hardware físico" (todo es nube) y se agrega el **consumo de la API del LLM**, el mayor costo variable |
+
+### 7.2 Texto corregido para el Canvas
+- **Socios clave:** proveedores de nube e infraestructura; proveedores de modelos de lenguaje (IA); proveedores de bases de datos; instituciones de educación superior; buscadores y bases de datos académicas.
+- **Actividades clave:** diseño pedagógico del tutor; citas según normas APA 7.ª edición; reducción de sesgos y verificación de respuestas; integración de repositorios académicos; actualización de la base de conocimiento.
+- **Recursos clave:** servidores y almacenamiento en la nube; conexión a motores de búsqueda; base de conocimiento académica; equipo de desarrollo y diseño.
+- **Propuesta de valor:** respuestas con fuentes citadas y verificables; retroalimentación sobre tus textos; aprendizaje guiado: te enseña el proceso, no el resultado; disponible 24/7 para resolver dudas académicas.
+- **Relaciones con los clientes:** periodo de prueba gratuito de 14 días; la IA adapta las explicaciones al nivel del estudiante; panel de seguimiento para docentes.
+- **Canales:** sitio web; integración con universidades (convenios); redes sociales.
+- **Segmento de clientes:** estudiantes de educación superior (principal); docentes universitarios; *a futuro:* estudiantes de bachillerato y autodidactas.
+- **Estructura de costos:** consumo de la API del modelo de IA; computación y base de datos en la nube; dominio y certificado SSL; desarrollo web y de la lógica de la IA; soporte técnico; marketing.
+- **Flujo de ingresos:** plan freemium (gratuito con límite diario); suscripción Premium mensual para estudiantes; licencias institucionales para universidades.
